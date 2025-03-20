@@ -1,0 +1,24 @@
+{
+  "update": "2064-03-29T14:10:53.960Z",
+  "license": "MIT",
+  "list": [
+    {
+      "id": "P3Xid-starts-with-and-indexing-unique-identifier",
+      "name": "Redis Instance",
+      "host": "redis-security",
+      "port": 6379,
+      "readonly": false,
+      "askAuth": false,
+      "cluster": false,
+      "sentinel": false,
+      "sentinelName": "",
+      "nodes": [],
+      "ssh": false,
+      "tlsWithoutCert": false,
+      "tlsRejectUnauthorized": false,
+      "tlsCrt": "",
+      "tlsKey": "",
+      "tlsCa": ""
+    }
+  ]
+}
