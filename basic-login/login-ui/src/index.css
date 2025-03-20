@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/* 🌞 기본(라이트) 테마 */
+:root {
+  --bg-color: #ffffff;
+  --text-color: #1a1a1a;
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --button-primary: #4f46e5;
+  --button-secondary: #2563eb;
+}
+
+/* 🌙 다크모드 테마 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #1a1a1a;
+    --text-color: #ffffff;
+    --input-bg: #2d2d2d;
+    --input-border: #4b5563;
+    --button-primary: #818cf8;
+    --button-secondary: #3b82f6;
+  }
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+/* 입력 필드 스타일 */
+input {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--text-color);
+}
+
+/* 버튼 스타일 */
+button {
+  transition: background-color 0.3s ease-in-out;
+}
+
+button.primary {
+  background-color: var(--button-primary);
+}
+
+button.secondary {
+  background-color: var(--button-secondary);
+}
+
+button:hover {
+  opacity: 0.9;
+}
