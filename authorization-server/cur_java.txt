@@ -1,0 +1,485 @@
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\AuthorizationServerApplication.java
+package mango.security.authorizationServer;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class AuthorizationServerApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(AuthorizationServerApplication.class, args);
+	}
+
+}
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\AuthorizationServerConfig.java
+package mango.security.authorizationServer.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Configuration
+public class AuthorizationServerConfig {
+    @Bean
+    public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate, PasswordEncoder passwordEncoder) {
+        JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
+        String clientId = "mango-client";
+        if(repository.findByClientId(clientId) == null) {
+            RegisteredClient registeredClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                    .clientId(clientId)
+                    .clientSecret(passwordEncoder.encode("mango-secret"))
+                    .clientIdIssuedAt(Instant.now())
+                    .clientName("Mango Local Client")
+                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                    .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                    .redirectUri("http://localhost:3000/login/oauth2/code/mango-client")
+                    .scope("read")
+                    .scope("write")
+                    .build();
+            repository.save(registeredClient);
+        }
+        return repository;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        // 단편적으로 봤을때는 BCrypotPasswordEncoder를 사용하는 것과 동일
+        // 하지만 향후 확장성을 고려하거나 Spring 권장 방식을 따르기에
+        // PasswordEncoderFactories.createDelegatingPasswordEncoder()를 사용하는 것이 좋다.
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\JwkConfig.java
+package mango.security.authorizationServer.config;
+
+// java security : 키 생성 관련련
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+import java.util.UUID;
+
+// spring security : jwt 발급용용
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+
+// Nimbus JOSE + JWT - JWK 처리 관련
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
+
+/**
+ * JWK란?
+ * - JWK (JSON Web Key)는 암호화 키를 표현하는 JSON 데이터 구조입니다.
+ * - RFC 7517에 정의되어 있으며, 공개 키 혹은 비대칭/대칭 키에 대한 메타 정보를 포함할 수 있습니다.
+ * - JWK는 키 타입(kty), 키 ID(kid), 공개 키 또는 비공개 키의 구성 요소(n, e, d 등)를 명시합니다.
+ * - 예를 들어 RSA 키의 경우 다음 필드를 포함할 수 있습니다:
+ *     - "kty": 키 타입 (예: "RSA")
+ *     - "n": modulus (base64url 인코딩된 값)
+ *     - "e": exponent (base64url 인코딩된 값)
+ *     - "d": private exponent (optional, 서명/복호화용)
+ *
+ * JWK Set이란?
+ * - 여러 개의 JWK를 포함하는 JSON 객체 구조입니다.
+ * - "keys": [ ... ] 배열 형태로 구성됩니다.
+ *
+ * @Configuration
+ * public class JwkConfig
+ * 
+ * @Bean
+ * public JWKSource<SecurityContext> jwkSource()
+ * - JWT 서명을 위한 JWK(RSAKey)를 생성하고, 이를 기반으로 JWKSet을 구성합니다.
+ * - JWKSource는 JWT 인코더가 서명 시 사용할 키를 동적으로 선택할 수 있도록 도와줍니다.
+ * - NimbusJwtEncoder와 연동되어 JWT 발급 시 서명 키로 사용됩니다.
+ * 
+ * private RSAKey generateRSAKey()
+ * - 2048비트 RSA 키 쌍을 생성하고 이를 기반으로 Nimbus의 RSAKey 객체를 구성합니다.
+ * - RSAKey.Builder를 통해 공개키/개인키, 키 ID(kid)를 설정합니다.
+ * - 이렇게 생성된 RSAKey는 JWK 표준 형식으로 자동 변환됩니다.
+ * 
+ * @Bean
+ * public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource)
+ * - Spring Security의 NimbusJwtEncoder에 JWKSource를 주입하여 JWT 서명을 처리합니다.
+ * - JWT를 인코딩(발급)할 때 위에서 생성된 RSA 개인 키로 서명합니다.
+ * 
+ * 이 구성 클래스는 OAuth2 Authorization Server에서 JWT 기반 토큰을 발급할 때,
+ * 그 토큰에 서명할 RSA 키를 JWK 형식으로 관리하고 외부에 노출할 수 있도록 준비합니다.
+ * 클라이언트는 `/oauth2/jwks` 또는 비슷한 경로로 JWKSet을 조회하여 토큰 검증 시 사용 가능한 공개 키를 획득할 수 있습니다.
+ */
+
+
+@Configuration
+public class JwkConfig {
+
+    // JWT 서명용 RSA 키를 포함한 JWKSource Bean 등록
+    @Bean
+    public JWKSource<SecurityContext> jwkSource() {
+        RSAKey rsakey = generateRSAKey(); // 아래에서 생성
+        JWKSet jwkSet = new JWKSet(rsakey); // JWK 세트 생성
+        return (jwkSelector, securityContext) -> jwkSelector.select(jwkSet);
+    }
+
+    // RSA 키 생성 후 Nimbus RSAKey 객체로 반환
+    private RSAKey generateRSAKey() {
+        try{
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+            keyPairGenerator.initialize(2048);
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+            RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
+            RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
+
+            return new RSAKey.Builder(publicKey)
+                    .privateKey(privateKey)
+                    .keyID(UUID.randomUUID().toString())
+                    .build();
+        } catch (Exception ex) {
+            throw new RuntimeException("RSA 키 생성 실패", ex);
+        }
+    }
+    @Bean
+    public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
+        return new NimbusJwtEncoder(jwkSource);
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\SecurityConfig.java
+package mango.security.authorizationServer.config;
+
+import mango.security.authorizationServer.filter.PreflightClientCheckFilter;
+import mango.security.authorizationServer.repository.RegisteredClientJpaRepository;
+import mango.security.authorizationServer.security.CustomAccessDeniedHandler;
+import mango.security.authorizationServer.security.CustomAuthenticationEntryPoint;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http, CustomAuthenticationEntryPoint customAuthenticationEntryPoint, CustomAccessDeniedHandler customAccessDeniedHandler, RegisteredClientJpaRepository registeredClientJpaRepository) throws Exception {
+        http
+            .addFilterBefore(new PreflightClientCheckFilter(registeredClientJpaRepository), UsernamePasswordAuthenticationFilter.class)
+            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+            .exceptionHandling(exceptions -> exceptions
+                    .authenticationEntryPoint(customAuthenticationEntryPoint)
+                    .accessDeniedHandler(customAccessDeniedHandler)
+            )
+            .formLogin(Customizer.withDefaults()); // form login for test
+
+        return http.build();
+    }
+}
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\BaseResponseDto.java
+package mango.security.authorizationServer.dto;
+
+import mango.security.authorizationServer.type.ApiResponseType;
+
+public record BaseResponseDto<T>(String status, String message, T data) {
+    public static <T> BaseResponseDto<T> of(ApiResponseType type, T data) {
+        return new BaseResponseDto<>(type.getStatus(), type.getMessage(), data);
+    }
+
+    public static <T> BaseResponseDto<T> withMessage(ApiResponseType type, String message) {
+        return new BaseResponseDto<>(type.getStatus(), message, null);
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\RegisteredClientEntity.java
+package mango.security.authorizationServer.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "oauth2_registered_client")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class RegisteredClientEntity {
+
+    @Id
+    private String id;
+
+    @Column(name = "client_id", nullable = false)
+    private String clientId;
+
+    @Column(name = "client_secret")
+    private String clientSecret;
+
+    @Column(name = "client_id_issued_at", nullable = false)
+    private Instant clientIdIssuedAt;
+
+    @Column(name = "client_secret_expires_at")
+    private Instant clientSecretExpiresAt;
+
+    @Column(name = "client_name", nullable = false)
+    private String clientName;
+
+    @Column(name = "client_authentication_methods", nullable = false)
+    private String clientAuthenticationMethods;
+
+    @Column(name = "authorization_grant_types", nullable = false)
+    private String authorizationGrantTypes;
+
+    @Column(name = "redirect_uris")
+    private String redirectUris;
+
+    @Column(name = "post_logout_redirect_uris")
+    private String postLogoutRedirectUris;
+
+    @Column(name = "scopes", nullable = false)
+    private String scopes;
+
+    @Column(name = "client_settings", nullable = false)
+    private String clientSettings;
+
+    @Column(name = "token_settings", nullable = false)
+    private String tokenSettings;
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\exception\AuthException.java
+package mango.security.authorizationServer.exception;
+
+import mango.security.authorizationServer.type.ApiResponseType;
+
+public class AuthException extends RuntimeException {
+    private final ApiResponseType responseType;
+
+    public AuthException(ApiResponseType responseType, String message) {
+        super(message);
+        this.responseType = responseType;
+    }
+
+    public ApiResponseType getResponseType() {
+        return responseType;
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\exception\GlobalExceptionHandler.java
+package mango.security.authorizationServer.exception;
+
+import mango.security.authorizationServer.dto.BaseResponseDto;
+import mango.security.authorizationServer.type.ApiResponseType;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleAllExceptions(Exception ex) {
+        return new ResponseEntity<>(BaseResponseDto.withMessage(ApiResponseType.ERROR, ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleAuthenticationException(AuthenticationException ex) {
+        return new ResponseEntity<>(BaseResponseDto.withMessage(ApiResponseType.UNAUTHORIZED, ex.getMessage()), HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleAccessDeniedException(AccessDeniedException ex) {
+        return new ResponseEntity<>(BaseResponseDto.withMessage(ApiResponseType.FORBIDDEN, ex.getMessage()), HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(AuthException.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleAuthException(AuthException ex) {
+        return new ResponseEntity<>(BaseResponseDto.withMessage(ex.getResponseType(), ex.getMessage()), HttpStatus.FORBIDDEN);
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\filter\PreflightClientCheckFilter.java
+package mango.security.authorizationServer.filter;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import mango.security.authorizationServer.dto.BaseResponseDto;
+import mango.security.authorizationServer.repository.RegisteredClientJpaRepository;
+import mango.security.authorizationServer.type.ApiResponseType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+public class PreflightClientCheckFilter extends OncePerRequestFilter {
+    private final RegisteredClientJpaRepository clientRepository;
+
+    public PreflightClientCheckFilter(RegisteredClientJpaRepository clientRepository) {
+        this.clientRepository = clientRepository;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain filterChain) throws ServletException, IOException {
+        if("OPTIONS".equalsIgnoreCase(req.getMethod())) {
+            String clientId = req.getHeader("client-id");
+            if(clientId != null && !isClientIdRegistered(clientId)){
+                BaseResponseDto<Object> responseDto = BaseResponseDto.withMessage(ApiResponseType.FORBIDDEN, null);
+                res.setStatus(Integer.parseInt(ApiResponseType.FORBIDDEN.getStatus()));
+                res.setContentType("application/json;charset=UTF-8");
+                res.getWriter().write(new ObjectMapper().writeValueAsString(responseDto));
+                return;
+            }
+
+        }
+        filterChain.doFilter(req, res);
+    }
+
+    private boolean isClientIdRegistered(String clientId) {
+        long count = clientRepository.countByClientId(clientId);
+        return count > 0;
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\RegisteredClientJpaRepository.java
+package mango.security.authorizationServer.repository;
+
+import mango.security.authorizationServer.entity.RegisteredClientEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface RegisteredClientJpaRepository extends JpaRepository<RegisteredClientEntity, String> {
+    Optional<RegisteredClientEntity> findByClientId(String clientId);
+    long countByClientId(String clientId);
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\security\CustomAccessDeniedHandler.java
+package mango.security.authorizationServer.security;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import mango.security.authorizationServer.dto.BaseResponseDto;
+import mango.security.authorizationServer.type.ApiResponseType;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+
+@Component
+public class CustomAccessDeniedHandler implements AccessDeniedHandler {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public void handle(HttpServletRequest request, HttpServletResponse response,
+                       AccessDeniedException accessDeniedException) throws IOException {
+        BaseResponseDto<Object> errorResponse = BaseResponseDto.withMessage(ApiResponseType.FORBIDDEN, null);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(Integer.parseInt(ApiResponseType.FORBIDDEN.getStatus()));
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+    }
+}
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\security\CustomAuthenticationEntryPoint.java
+package mango.security.authorizationServer.security;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import mango.security.authorizationServer.dto.BaseResponseDto;
+import mango.security.authorizationServer.type.ApiResponseType;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+
+@Component
+public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response,
+                         AuthenticationException authException) throws IOException {
+        ApiResponseType responseType;
+
+        // 토큰 만료 예외 처리 (ExpiredJwtException 또는 JwtException 사용)
+        if (authException.getCause() != null &&
+                authException.getCause().getMessage() != null &&
+                authException.getCause().getMessage().toLowerCase().contains("expired")) {
+            responseType = ApiResponseType.OUTDATED_TOKEN;
+        } else {
+            responseType = ApiResponseType.INVALID_TOKEN;
+        }
+        response.setCharacterEncoding("UTF-8");
+        BaseResponseDto<Object> errorResponse = BaseResponseDto.withMessage(responseType, null);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(Integer.parseInt(responseType.getStatus()));
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+    }
+}
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\type\ApiResponseType.java
+package mango.security.authorizationServer.type;
+
+import lombok.Getter;
+
+@Getter
+public enum ApiResponseType {
+    SUCCESS("200", "성공"),
+    USER_NOT_FOUND("404", "사용자를 찾을 수 없음"),
+    INVALID_TOKEN("498", "유효하지 않은 토큰"),
+    FORBIDDEN("403", "접근 권한 없음"),
+    OUTDATED_TOKEN("419", "토큰 만료"),
+    ERROR("500", "서버 오류"),
+    UNAUTHORIZED("401", "인증 실패"),
+    LOGIN_FAILED("400", "로그인 실패"),
+    REFRESH_TOKEN_EXPIRED("440", "리프레시 토큰 만료"),
+    REFRESH_TOKEN_INVALID("499", "유효하지 않은 리프레시 토큰");
+
+    private final String status;
+    private final String message;
+
+    ApiResponseType(String status, String message) {
+        this.status = status;
+        this.message = message;
+    }
+}
+
+
