@@ -31,4 +31,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponseDto<Object>> handleAuthException(AuthException ex) {
         return new ResponseEntity<>(BaseResponseDto.withMessage(ex.getResponseType(), ex.getMessage()), HttpStatus.FORBIDDEN);
     }
+
+    @ExceptionHandler(RedisException.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleRedisException(RedisException ex) {
+        return new ResponseEntity<>(
+                BaseResponseDto.withMessage(ex.getResponseType(), ex.getMessage()),
+                HttpStatus.SERVICE_UNAVAILABLE
+        );
+    }
 }

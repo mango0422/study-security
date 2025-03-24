@@ -19,7 +19,8 @@ public enum ApiResponseType {
     REFRESH_TOKEN_EXPIRED("440", "리프레시 토큰 만료"),
     INVALID_TOKEN("498", "유효하지 않은 토큰"),
     REFRESH_TOKEN_INVALID("499", "유효하지 않은 리프레시 토큰"),
-    ERROR("500", "서버 오류");
+    ERROR("500", "서버 오류"),
+    REDIS_CONNECTION_FAILED("503", "Redis 연결에 실패했습니다.");
 
     private final String status;
     private final String message;
