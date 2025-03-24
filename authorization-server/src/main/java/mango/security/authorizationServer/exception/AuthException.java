@@ -10,6 +10,11 @@ public class AuthException extends RuntimeException {
         this.responseType = responseType;
     }
 
+    public AuthException(ApiResponseType responseType) {
+        super(responseType.getMessage());
+        this.responseType = responseType;
+    }
+
     public ApiResponseType getResponseType() {
         return responseType;
     }

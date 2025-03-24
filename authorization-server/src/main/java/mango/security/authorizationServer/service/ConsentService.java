@@ -19,11 +19,11 @@ public class ConsentService {
     }
 
     public Map<String, String> extractConsentInfo(ConsentRequestDto dto) {
-        Assert.notBlank(dto.client_id(), ApiResponseType.INVALID_REQUEST, "client_id는 필수입니다.");
-        Assert.notBlank(dto.scope(), ApiResponseType.INVALID_REQUEST, "scope는 필수입니다.");
+        Assert.notBlank(dto.client_id(), ApiResponseType.INVALID_REQUEST);
+        Assert.notBlank(dto.scope(), ApiResponseType.INVALID_REQUEST);
 
         var client = clientRepository.findByClientId(dto.client_id())
-                .orElseThrow(() -> new AuthException(ApiResponseType.CLIENT_NOT_FOUND, "등록되지 않은 클라이언트입니다."));
+                .orElseThrow(() -> new AuthException(ApiResponseType.CLIENT_NOT_FOUND));
 
         return Map.of(
                 "clientName", client.getClientName(),
