@@ -13,6 +13,7 @@ public class AuthorizationServerApplication {
 
 }
 
+
 C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\AuthorizationServerConfig.java
 package mango.security.authorizationServer.config;
 
@@ -194,6 +195,34 @@ public class SecurityConfig {
     }
 }
 
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\controller\ConsentController.java
+package mango.security.authorizationServer.controller;
+
+import mango.security.authorizationServer.dto.BaseResponseDto;
+import mango.security.authorizationServer.dto.ConsentRequestDto;
+import mango.security.authorizationServer.service.ConsentService;
+import mango.security.authorizationServer.type.ApiResponseType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/oauth2/consent")
+public class ConsentController {
+    private final ConsentService consentService;
+
+    public ConsentController(ConsentService consentService) {
+        this.consentService = consentService;
+    }
+
+    @GetMapping
+    public BaseResponseDto<Object> consentInfo(ConsentRequestDto reqDto) {
+        var data = consentService.extractConsentInfo(reqDto);
+        return BaseResponseDto.of(ApiResponseType.SUCCESS, data);
+    }
+}
+
+
 C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\BaseResponseDto.java
 package mango.security.authorizationServer.dto;
 
@@ -210,6 +239,114 @@ public record BaseResponseDto<T>(String status, String message, T data) {
 }
 
 
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\ConsentConfirmRequestDto.java
+package mango.security.authorizationServer.dto;
+
+public record ConsentConfirmRequestDto(
+        String client_id,
+        String principal_name,
+        String scope // "read write"
+) {}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\ConsentRequestDto.java
+package mango.security.authorizationServer.dto;
+
+public record ConsentRequestDto(
+        String client_id,
+        String scope,
+        String redirect_uri
+) {}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\AuthorizationConsentId.java
+package mango.security.authorizationServer.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Embeddable;
+
+import java.io.Serializable;
+import java.util.Objects;
+
+@Embeddable
+public class AuthorizationConsentId implements Serializable {
+    @Column(name="registered_client_id", length = 100, nullable = false)
+    private String registeredClientId;
+
+    @Column(name="principal_name", length = 200, nullable = false)
+    private String principalName;
+
+    // 기본 생성자 & equals, hashCode 필수!
+    public AuthorizationConsentId() {}
+
+    public AuthorizationConsentId(String registeredClientId, String principalName) {
+        this.registeredClientId = registeredClientId;
+        this.principalName = principalName;
+    }
+
+    public String getRegisteredClientId() {
+        return registeredClientId;
+    }
+
+    public String getPrincipalName() {
+        return principalName;
+    }
+
+    // equals, hashCode 필수!
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof AuthorizationConsentId that)) return false;
+        return Objects.equals(registeredClientId, that.registeredClientId)
+                && Objects.equals(principalName, that.principalName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(registeredClientId, principalName);
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\OAuth2AuthorizationConsentEntity.java
+package mango.security.authorizationServer.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "oauth2_authorization_consent")
+public class OAuth2AuthorizationConsentEntity {
+    @EmbeddedId
+    private AuthorizationConsentId id;
+
+    @Column(name = "authorities", nullable = false, length = 1000)
+    private String authorities;
+
+    public OAuth2AuthorizationConsentEntity() {}
+
+    public OAuth2AuthorizationConsentEntity(AuthorizationConsentId id, String authorities) {
+        this.id = id;
+        this.authorities = authorities;
+    }
+
+    public AuthorizationConsentId getId() {
+        return id;
+    }
+
+    public void setId(AuthorizationConsentId id) {
+        this.id = id;
+    }
+
+    public String getAuthorities() {
+        return authorities;
+    }
+
+    public void setAuthorities(String authorities) {
+        this.authorities = authorities;
+    }
+}
+
+
 C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\RegisteredClientEntity.java
 package mango.security.authorizationServer.entity;
 
@@ -220,11 +357,6 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "oauth2_registered_client")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class RegisteredClientEntity {
 
     @Id
@@ -278,6 +410,11 @@ public class AuthException extends RuntimeException {
 
     public AuthException(ApiResponseType responseType, String message) {
         super(message);
+        this.responseType = responseType;
+    }
+
+    public AuthException(ApiResponseType responseType) {
+        super(responseType.getMessage());
         this.responseType = responseType;
     }
 
@@ -370,6 +507,22 @@ public class PreflightClientCheckFilter extends OncePerRequestFilter {
 }
 
 
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\AuthorizationConsentRepository.java
+package mango.security.authorizationServer.repository;
+
+import mango.security.authorizationServer.entity.AuthorizationConsentId;
+import mango.security.authorizationServer.entity.OAuth2AuthorizationConsentEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface AuthorizationConsentRepository
+        extends JpaRepository<OAuth2AuthorizationConsentEntity, AuthorizationConsentId> {
+
+    Optional<OAuth2AuthorizationConsentEntity> findById(AuthorizationConsentId id);
+}
+
+
 C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\RegisteredClientJpaRepository.java
 package mango.security.authorizationServer.repository;
 
@@ -455,6 +608,70 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
     }
 }
 
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\AuthorizationConsentService.java
+package mango.security.authorizationServer.service;
+
+import mango.security.authorizationServer.dto.ConsentConfirmRequestDto;
+import mango.security.authorizationServer.repository.AuthorizationConsentRepository;
+import mango.security.authorizationServer.repository.RegisteredClientJpaRepository;
+import mango.security.authorizationServer.type.ApiResponseType;
+import mango.security.authorizationServer.util.Assert;
+import org.springframework.stereotype.Service;
+
+@Service
+public class AuthorizationConsentService {
+    private final AuthorizationConsentRepository authorizationConsentRepository;
+    private final RegisteredClientJpaRepository registeredClientJpaRepository;
+
+    public AuthorizationConsentService(AuthorizationConsentRepository authorizationConsentRepository,
+            RegisteredClientJpaRepository registeredClientJpaRepository) {
+        this.authorizationConsentRepository = authorizationConsentRepository;
+        this.registeredClientJpaRepository = registeredClientJpaRepository;
+    }
+
+    public void confirmConsent(ConsentConfirmRequestDto dto){
+        Assert.notBlank(dto.client_id(), ApiResponseType.INVALID_REQUEST);
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\ConsentService.java
+package mango.security.authorizationServer.service;
+
+import mango.security.authorizationServer.dto.ConsentRequestDto;
+import mango.security.authorizationServer.exception.AuthException;
+import mango.security.authorizationServer.repository.RegisteredClientJpaRepository;
+import mango.security.authorizationServer.type.ApiResponseType;
+import mango.security.authorizationServer.util.Assert;
+import org.springframework.stereotype.Service;
+
+import java.util.Map;
+
+@Service
+public class ConsentService {
+
+    private final RegisteredClientJpaRepository clientRepository;
+
+    public ConsentService(RegisteredClientJpaRepository clientRepository) {
+        this.clientRepository = clientRepository;
+    }
+
+    public Map<String, String> extractConsentInfo(ConsentRequestDto dto) {
+        Assert.notBlank(dto.client_id(), ApiResponseType.INVALID_REQUEST);
+        Assert.notBlank(dto.scope(), ApiResponseType.INVALID_REQUEST);
+
+        var client = clientRepository.findByClientId(dto.client_id())
+                .orElseThrow(() -> new AuthException(ApiResponseType.CLIENT_NOT_FOUND));
+
+        return Map.of(
+                "clientName", client.getClientName(),
+                "requestedScope", dto.scope(),
+                "redirectedUri", dto.redirect_uri()
+        );
+    }
+}
+
+
 C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\type\ApiResponseType.java
 package mango.security.authorizationServer.type;
 
@@ -463,15 +680,21 @@ import lombok.Getter;
 @Getter
 public enum ApiResponseType {
     SUCCESS("200", "성공"),
-    USER_NOT_FOUND("404", "사용자를 찾을 수 없음"),
-    INVALID_TOKEN("498", "유효하지 않은 토큰"),
-    FORBIDDEN("403", "접근 권한 없음"),
-    OUTDATED_TOKEN("419", "토큰 만료"),
-    ERROR("500", "서버 오류"),
-    UNAUTHORIZED("401", "인증 실패"),
     LOGIN_FAILED("400", "로그인 실패"),
+    UNAUTHORIZED("401", "인증 실패"),
+    FORBIDDEN("403", "접근 권한 없음"),
+    USER_NOT_FOUND("404", "사용자를 찾을 수 없음"),
+    CLIENT_NOT_FOUND("404", "등록되지 않은 클라이언트입니다."),
+    CLIENT_ALREADY_CONSENTED("409", "이미 동의한 클라이언트입니다."),
+    OUTDATED_TOKEN("419", "토큰 만료"),
+    INVALID_REQUEST("422", "잘못된 요청입니다."),
+    CLIENT_ID_REQUIRED("422", "client_id는 필수입니다."),
+    PRINCIPAL_NAME_REQUIRED("422", "principal_name은 필수입니다."),
+    SCOPE_REQUIRED("422", "scope는 필수입니다."),
     REFRESH_TOKEN_EXPIRED("440", "리프레시 토큰 만료"),
-    REFRESH_TOKEN_INVALID("499", "유효하지 않은 리프레시 토큰");
+    INVALID_TOKEN("498", "유효하지 않은 토큰"),
+    REFRESH_TOKEN_INVALID("499", "유효하지 않은 리프레시 토큰"),
+    ERROR("500", "서버 오류");
 
     private final String status;
     private final String message;
@@ -479,6 +702,48 @@ public enum ApiResponseType {
     ApiResponseType(String status, String message) {
         this.status = status;
         this.message = message;
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\util\Assert.java
+package mango.security.authorizationServer.util;
+
+import mango.security.authorizationServer.exception.AuthException;
+import mango.security.authorizationServer.type.ApiResponseType;
+
+import java.util.Collection;
+
+public class Assert {
+
+    public static void notBlank(String value, ApiResponseType type) {
+        if (value == null || value.isBlank()) {
+            throw new AuthException(type);
+        }
+    }
+
+    public static void notNull(Object obj, ApiResponseType type) {
+        if (obj == null) {
+            throw new AuthException(type);
+        }
+    }
+
+    public static void notEmpty(Collection<?> collection, ApiResponseType type) {
+        if (collection == null || collection.isEmpty()) {
+            throw new AuthException(type);
+        }
+    }
+
+    public static void isTrue(boolean expression, ApiResponseType type) {
+        if (!expression) {
+            throw new AuthException(type);
+        }
+    }
+
+    public static void isFalse(boolean expression, ApiResponseType type) {
+        if (expression) {
+            throw new AuthException(type);
+        }
     }
 }
 

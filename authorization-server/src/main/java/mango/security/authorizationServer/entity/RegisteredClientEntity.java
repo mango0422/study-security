@@ -7,11 +7,6 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "oauth2_registered_client")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class RegisteredClientEntity {
 
     @Id
