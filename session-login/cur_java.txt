@@ -1,0 +1,416 @@
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\BasicLoginApplication.java
+package mango.security.basic_login;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class BasicLoginApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(BasicLoginApplication.class, args);
+	}
+
+}
+
+
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\config\InMemorySecurityConfig.java
+package mango.security.basic_login.config;
+
+import jakarta.servlet.http.Cookie;
+import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.SecurityFilterChain;
+
+import java.util.List;
+
+@Configuration
+@NoArgsConstructor
+public class InMemorySecurityConfig {
+
+    @Bean
+    public SecurityFilterChain inMemorySecurityFilterChain(HttpSecurity http, InMemoryUserDetailsManager userDetailsManager) throws Exception {
+        http
+                .securityMatcher("/inmemory/**")
+                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
+                        .requestMatchers("/inmemory/login", "/inmemory/signup").permitAll()
+                        .requestMatchers("/inmemory/home").authenticated()
+                        .anyRequest().authenticated()
+                )
+                .formLogin(form -> form
+                        .loginPage("/inmemory/login")
+                        .loginProcessingUrl("/inmemory/process_login")
+                        .defaultSuccessUrl("/inmemory/home", true)
+                        .permitAll()
+                )
+                .logout(logout -> logout
+                        .logoutUrl("/inmemory/logout")
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            Cookie cookie = new Cookie("JSESSIONID", null);
+                            cookie.setPath("/");
+                            cookie.setHttpOnly(true);
+                            cookie.setMaxAge(0);
+                            response.addCookie(cookie);
+                            response.sendRedirect("/inmemory/logout?success");
+                        })
+                        .invalidateHttpSession(true)
+//                        .deleteCookies("JSESSIONID") // 세션 삭제
+                )
+                .userDetailsService(userDetailsManager); // 🔥 userDetailsManager를 직접 사용
+
+        return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    // 🔥 초기 사용자 등록을 여기서 수행
+    @Bean
+    public InMemoryUserDetailsManager inMemoryUserDetailsManager(PasswordEncoder passwordEncoder) {
+        UserDetails user = User.builder()
+                .username("user")
+                .password(passwordEncoder.encode("user"))
+                .roles("USER")
+                .build();
+
+        UserDetails admin = User.builder()
+                .username("admin")
+                .password(passwordEncoder.encode("admin"))
+                .roles("ADMIN")
+                .build();
+
+        return new InMemoryUserDetailsManager(List.of(user, admin));
+    }
+}
+
+
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\config\JpaSecurityConfig.java
+package mango.security.basic_login.config;
+
+import jakarta.servlet.http.Cookie;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.web.SecurityFilterChain;
+
+import lombok.RequiredArgsConstructor;
+import mango.security.basic_login.service.JpaUserDetailsService;
+
+@Configuration
+@RequiredArgsConstructor
+public class JpaSecurityConfig {
+    private final JpaUserDetailsService jpaUserDetailsService;
+
+    @Bean
+    public SecurityFilterChain jpSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+        .csrf(AbstractHttpConfigurer::disable)
+        .authorizeHttpRequests(auth-> auth
+            .requestMatchers("/jpa/home").authenticated()
+            .anyRequest().permitAll()
+        )
+        .formLogin(form -> form
+            .loginPage("/jpa/login")
+            .loginProcessingUrl("/jpa/process_login")
+            .defaultSuccessUrl("/jpa/home", true)
+            .permitAll()
+        )
+                .logout(logout -> logout
+                        .logoutUrl("/jpa/logout")
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            Cookie cookie = new Cookie("JSESSIONID", null);
+                            cookie.setPath("/");
+                            cookie.setHttpOnly(true);
+                            cookie.setMaxAge(0);
+                            response.addCookie(cookie);
+                            response.sendRedirect("/jpa/logout?success");
+                        })
+                        .invalidateHttpSession(true)
+//                        .deleteCookies("JSESSIONID") // 세션 삭제
+                        .permitAll()
+                )
+
+                .userDetailsService(jpaUserDetailsService);
+
+        return http.build();
+    }
+}
+
+
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\controller\InMemoryController.java
+package mango.security.basic_login.controller;
+
+import lombok.RequiredArgsConstructor;
+import mango.security.basic_login.service.InMemoryUserDetailsService;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+
+@Controller
+@RequestMapping("/inmemory")
+@RequiredArgsConstructor
+public class    InMemoryController {
+    private final InMemoryUserDetailsService userService;
+
+    @GetMapping("/login")
+    public String loginPage(Model model) {
+        model.addAttribute("loginType", "inmemory");
+        return "login";
+    }
+
+    @GetMapping("/home")
+    public String homePage() {
+        return "home";
+    }
+
+    @GetMapping("/signup")
+    public String signupPage(Model model) {
+        model.addAttribute("loginType", "inmemory");
+        return "signup";
+    }
+
+    @PostMapping("/signup")
+    public String signup(@RequestParam String username, @RequestParam String password, Model model) {
+        try {
+            userService.addUser(username, password, "USER");
+            return "redirect:login";
+        } catch (IllegalStateException e) {
+            model.addAttribute("error", e.getMessage());
+            return "signup";
+        }
+    }
+
+    @GetMapping("/logout")
+    public String logoutPage(Model model) {
+        model.addAttribute("loginType", "inmemory");
+        return "logout"; // logout.html을 렌더링
+    }
+
+}
+
+
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\controller\JpaController.java
+package mango.security.basic_login.controller;
+
+import lombok.RequiredArgsConstructor;
+import mango.security.basic_login.service.JpaUserDetailsService;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+
+@Controller
+@RequestMapping("/jpa")
+@RequiredArgsConstructor
+public class JpaController {
+    private final JpaUserDetailsService jpaUserDetailsService;
+
+    @GetMapping("/login")
+    public String loginPage(Model model) {
+        model.addAttribute("loginType", "jpa");
+        return "login";
+    }
+
+    @GetMapping("/home")
+    public String homePage() {
+        return "home";
+    }
+
+    @GetMapping("/signup")
+    public String signupPage(Model model) {
+        model.addAttribute("loginType", "jpa");
+        return "signup";
+    }
+
+    @PostMapping("/signup")
+    public String signup(@RequestParam String username, @RequestParam String password, Model model) {
+        try {
+            jpaUserDetailsService.addUser(username, password);
+            return "redirect:/jpa/login";
+        } catch (IllegalStateException e) {
+            model.addAttribute("error", e.getMessage());
+            return "signup";
+        }
+    }
+
+    @GetMapping("/logout")
+    public String logoutPage(Model model) {
+        model.addAttribute("loginType", "jpa");
+        return "logout"; // logout.html을 렌더링
+    }
+}
+
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\entity\Member.java
+package mango.security.basic_login.entity;
+
+import mango.security.basic_login.type.Role;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+@Entity
+@Getter
+@Setter
+@Table(name = "member")
+public class Member {
+    @Id
+    private String email;
+
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    private Role role;
+
+}
+
+
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\repository\MemberRepository.java
+package mango.security.basic_login.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import mango.security.basic_login.entity.Member;
+import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.ListCrudRepository;
+import org.springframework.data.repository.ListPagingAndSortingRepository;
+import org.springframework.data.repository.PagingAndSortingRepository;
+import org.springframework.data.repository.query.QueryByExampleExecutor;
+
+import java.util.Optional;
+
+/**
+ * JpaRepository는 인터페이스로서, CRUD 기능을 제공한다.
+ * JpaRepository의 제네릭 타입은 엔티티 타입과 식별자 타입이다.
+ * JpaRepository는 ListPagingAndSortingRepository, ListCrudRepository, QueryByExampleExecutor를 직접 상속 받는다.
+ * {@link ListPagingAndSortingRepository} {@link ListCrudRepository} {@link QueryByExampleExecutor}
+ * 또한 ListCrudRepository는 CrudRepository를 상속받고, ListPagingAndSortingRepository는 PagingAndSortingRepository를 상속받는다.
+ * {@link CrudRepository} {@link PagingAndSortingRepository}
+ * 마지막으로 CrudRepository와 PagingAndSortingRepository는 Repository를 상속받는다.
+ * {@link Repository}
+ */
+
+public interface MemberRepository extends JpaRepository<Member, String> {
+    Optional<Member> findByEmail(String email);
+}
+
+/**
+ * JpaRepository를 보면 @NoRepositoryBean이라는 어노테이션이 붙어있다.
+ * @see NoRepositoryBean
+ * 이 어노테이션은 스프링 데이터 JPA가 이 인터페이스를 빈으로 등록하지 않도록 하는 역할을 한다.
+ * 즉, 인터페이스 자체가 직접 빈으로등록되는 것이 아닌, JpaRepository를 상속받는 인터페이스가 빈으로 등록된다.
+ * 여기서는 MemberRepository가 빈으로 등록된다.
+ */
+
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\service\InMemoryUserDetailsService.java
+package mango.security.basic_login.service;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.stereotype.Service;
+
+import java.util.concurrent.ConcurrentHashMap;
+
+@Service
+@RequiredArgsConstructor
+public class InMemoryUserDetailsService {
+
+    private final InMemoryUserDetailsManager userDetailsManager;
+    private final PasswordEncoder passwordEncoder;
+    private final ConcurrentHashMap<String, UserDetails> users = new ConcurrentHashMap<>();
+
+    public void addUser(String username, String password, String role) {
+        if (users.containsKey(username)) {
+            throw new IllegalStateException("User already exists");
+        }
+        UserDetails user = User.builder()
+                .username(username)
+                .password(passwordEncoder.encode(password))
+                .roles(role)
+                .build();
+        userDetailsManager.createUser(user);
+        users.put(username, user);
+    }
+
+    public boolean userExists(String username) {
+        return users.containsKey(username);
+    }
+
+    public UserDetailsService getUserDetailsService() {
+        return userDetailsManager;
+    }
+}
+
+
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\service\JpaUserDetailsService.java
+package mango.security.basic_login.service;
+
+import java.util.Collections;
+import java.util.Optional;
+
+import io.lettuce.core.models.role.RedisInstance;
+import mango.security.basic_login.type.Role;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import lombok.RequiredArgsConstructor;
+import mango.security.basic_login.entity.Member;
+import mango.security.basic_login.repository.MemberRepository;
+
+@Service
+@RequiredArgsConstructor
+public class JpaUserDetailsService implements UserDetailsService{
+
+    private final MemberRepository memberRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException{
+        Optional<Member> member = memberRepository.findByEmail(email);
+        if (member.isEmpty()){
+            throw new UsernameNotFoundException("User not found");
+        } else {
+            return new User(member.get().getEmail(), member.get().getPassword(),
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + member.get().getRole().name())));
+        }
+    }
+
+    public void addUser(String email, String password) {
+        if (memberRepository.findByEmail(email).isPresent()) {
+            throw new IllegalStateException("User already exists");
+        }
+        Member member = new Member();
+        member.setEmail(email);
+        member.setPassword(passwordEncoder.encode(password));
+        member.setRole(Role.USER);
+        memberRepository.save(member);
+    }
+}
+
+
+C:\Users\tom99\study-security\basic-login\src\main\java\mango\security\basic_login\type\Role.java
+package mango.security.basic_login.type;
+
+public enum Role {
+    USER, ADMIN
+}
+
+

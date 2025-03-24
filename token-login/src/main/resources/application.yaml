@@ -1,0 +1,27 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: basic-login
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        show_sql: true
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
+jwt:
+  accessToken:
+    ttl: ${JWT_EXPIRE_TIME_1}
+  refreshToken:
+    ttl: ${JWT_EXPIRE_TIME_2}

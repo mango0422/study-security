@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Sign Up</title>
+    <style>
+        /* 기본 색상 및 다크모드 지원 */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --border-color: #cccccc;
+            --button-bg: #007bff;
+            --button-text: #ffffff;
+            --input-bg: #ffffff;
+            --input-border: #cccccc;
+            --error-color: #dc3545;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #121212;
+                --text-color: #e0e0e0;
+                --border-color: #333333;
+                --button-bg: #1a73e8;
+                --input-bg: #1e1e1e;
+                --input-border: #444444;
+                --error-color: #ff6b6b;
+            }
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .signup-container {
+            width: 320px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background-color: var(--bg-color);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .signup-container h1 {
+            margin-bottom: 20px;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid var(--input-border);
+            border-radius: 3px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            box-sizing: border-box;
+            font-size: 16px;
+            transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--button-bg);
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 3px;
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .error {
+            color: var(--error-color);
+            margin-bottom: 15px;
+            text-align: left;
+            font-size: 14px;
+            padding: 8px;
+            border-radius: 3px;
+            background-color: rgba(220, 53, 69, 0.1);
+        }
+        .login-link {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .login-link a {
+            color: var(--button-bg);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+<div class="signup-container">
+    <h1>Sign Up (<span th:text="${loginType}"></span>)</h1>
+    <div th:if="${error}" class="error">
+        <p th:text="${error}"></p>
+    </div>
+    <!-- loginType에 따라 JPA 또는 InMemory 회원가입으로 분기 -->
+    <form th:action="${loginType == 'jpa'} ? @{/jpa/signup} : @{/inmemory/signup}" method="post">
+        <input type="email" name="username" placeholder="test@mail.example" required />
+        <input type="password" name="password" placeholder="Password" required />
+        <!-- 로그인 방식 저장 (JPA / InMemory) -->
+        <input type="hidden" name="loginType" th:value="${loginType}" />
+        <button type="submit">Sign Up</button>
+    </form>
+    <div class="login-link">
+        Already have an account? <a th:href="${loginType == 'jpa'} ? @{/jpa/login} : @{/inmemory/login}">Log in</a>
+    </div>
+</div>
+<script>
+    // 별도의 JavaScript 없이 CSS의 미디어쿼리로 다크모드 자동 지원
+</script>
+</body>
+</html>

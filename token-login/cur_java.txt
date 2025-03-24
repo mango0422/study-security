@@ -1,0 +1,1447 @@
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\TokenLoginApplication.java
+package mango.security.token_login;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class TokenLoginApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(TokenLoginApplication.class, args);
+	}
+
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\config\CommonJwtSecurityConfig.java
+package mango.security.token_login.config;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.List;
+
+@Configuration
+@RequiredArgsConstructor
+public class CommonJwtSecurityConfig {
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+        return authenticationConfiguration.getAuthenticationManager();
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\config\CorsSecurityConfig.java
+package mango.security.token_login.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
+
+public class CorsSecurityConfig {
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/auth", configuration);
+        return source;
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\config\InMemoryJwtSecurityConfig.java
+package mango.security.token_login.config;
+
+import mango.security.token_login.security.CustomAccessDeniedHandler;
+import mango.security.token_login.security.CustomAuthenticationEntryPoint;
+import mango.security.token_login.security.JwtInMemoryAuthenticationFilter;
+import mango.security.token_login.token.InMemoryJwtTokenProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class InMemoryJwtSecurityConfig {
+
+    private final InMemoryJwtTokenProvider jwtTokenProvider;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
+    private final UserDetailsService inMemoryUserDetailsService;
+
+    public InMemoryJwtSecurityConfig(InMemoryJwtTokenProvider jwtTokenProvider,
+                                     CustomAuthenticationEntryPoint customAuthenticationEntryPoint,
+                                     CustomAccessDeniedHandler customAccessDeniedHandler,
+                                     @Qualifier("inMemoryUserDetailsService") UserDetailsService inMemoryUserDetailsService) {
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.customAuthenticationEntryPoint = customAuthenticationEntryPoint;
+        this.customAccessDeniedHandler = customAccessDeniedHandler;
+        this.inMemoryUserDetailsService = inMemoryUserDetailsService;
+    }
+
+    @Bean
+    public SecurityFilterChain inMemorySecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/auth/inmemory/**")
+                .cors(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(customAuthenticationEntryPoint)
+                        .accessDeniedHandler(customAccessDeniedHandler)
+                )
+                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
+                        .requestMatchers("/api/auth/inmemory/login","/api/auth/inmemory/signup" ).permitAll()
+                        .anyRequest().authenticated()
+                );
+
+        http.addFilterBefore(new JwtInMemoryAuthenticationFilter(jwtTokenProvider, inMemoryUserDetailsService),
+                UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\config\JpaJwtSecurityConfig.java
+package mango.security.token_login.config;
+
+import mango.security.token_login.security.CustomAccessDeniedHandler;
+import mango.security.token_login.security.CustomAuthenticationEntryPoint;
+import mango.security.token_login.security.JwtJpaAuthenticationFilter;
+import mango.security.token_login.token.JwtTokenProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.SecurityFilterChain;
+
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class JpaJwtSecurityConfig {
+    private final JwtTokenProvider jwtTokenProvider;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
+
+    private final UserDetailsService jpaUserDetailsService;
+
+    public JpaJwtSecurityConfig(JwtTokenProvider jwtTokenProvider,
+                                     CustomAuthenticationEntryPoint customAuthenticationEntryPoint,
+                                     CustomAccessDeniedHandler customAccessDeniedHandler,
+                                     @Qualifier("jpaUserDetailsService") UserDetailsService jpaUserDetailsService) {
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.customAuthenticationEntryPoint = customAuthenticationEntryPoint;
+        this.customAccessDeniedHandler = customAccessDeniedHandler;
+        this.jpaUserDetailsService = jpaUserDetailsService;
+    }
+
+    @Bean
+    public SecurityFilterChain jpSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+        .securityMatcher("/api/auth/jpa/**")
+        .cors(Customizer.withDefaults())
+        .csrf(AbstractHttpConfigurer::disable)
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        )
+        .exceptionHandling(exceptions -> exceptions
+            .authenticationEntryPoint(customAuthenticationEntryPoint)
+            .accessDeniedHandler(customAccessDeniedHandler)
+        )
+        .authorizeHttpRequests(auth-> auth
+            .requestMatchers("/api/auth/jpa/login", "/api/auth/jpa/signup").permitAll()
+            .anyRequest().authenticated()
+        );
+
+        http.addFilterBefore(new JwtJpaAuthenticationFilter(jwtTokenProvider, jpaUserDetailsService), UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\controller\AbstractAuthController.java
+package mango.security.token_login.controller;
+
+import mango.security.token_login.dto.AuthResponseDto;
+import mango.security.token_login.dto.BaseResponseDto;
+import mango.security.token_login.type.ApiResponseType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.ResponseCookie;
+
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
+import java.time.Duration;
+
+public abstract class AbstractAuthController {
+
+    // 공통: 쿠키 생성 메서드 (Spring ResponseCookie 사용)
+    protected void addRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
+                .httpOnly(true)
+                .secure(true) // 프로덕션에서는 HTTPS 환경에서 true
+                .path("/")
+                .maxAge(Duration.ofDays(7))
+                .sameSite("None")
+                .build();
+        response.setHeader("Set-Cookie", cookie.toString());
+    }
+
+    // 공통: 쿠키 삭제 메서드
+    protected void deleteRefreshTokenCookie(HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(0)
+                .sameSite("None")
+                .build();
+        response.setHeader("Set-Cookie", cookie.toString());
+    }
+
+    // 공통: 응답 포맷 생성 메서드
+    protected <T> ResponseEntity<BaseResponseDto<T>> buildResponse(T data, ApiResponseType responseType) {
+        return ResponseEntity.ok(new BaseResponseDto<>(responseType, data));
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\controller\InMemoryAuthController.java
+package mango.security.token_login.controller;
+
+import mango.security.token_login.dto.AuthResponseDto;
+import mango.security.token_login.dto.BaseResponseDto;
+import mango.security.token_login.dto.LoginRequestDto;
+import mango.security.token_login.dto.SignUpRequestDto;
+import mango.security.token_login.service.AuthService;
+import mango.security.token_login.type.ApiResponseType;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.servlet.http.HttpServletResponse;
+
+@RestController
+@RequestMapping("/api/auth/inmemory")
+public class InMemoryAuthController extends AbstractAuthController {
+
+    private final AuthService authService;
+
+    public InMemoryAuthController(@Qualifier("inMemoryAuthService") AuthService authService) {
+        this.authService = authService;
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<BaseResponseDto<AuthResponseDto>> login(@RequestBody LoginRequestDto loginRequestDto,
+                                                                  HttpServletResponse response) {
+        AuthResponseDto authResponse = authService.login(loginRequestDto.email(), loginRequestDto.password());
+        addRefreshTokenCookie(response, authResponse.refreshToken());
+        AuthResponseDto result = new AuthResponseDto(authResponse.accessToken(), null);
+        return buildResponse(result, ApiResponseType.SUCCESS);
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<BaseResponseDto<AuthResponseDto>> signup(@RequestBody SignUpRequestDto signUpRequestDto,
+                                                                   HttpServletResponse response) {
+        AuthResponseDto authResponse = authService.signup(signUpRequestDto);
+        addRefreshTokenCookie(response, authResponse.refreshToken());
+        AuthResponseDto result = new AuthResponseDto(authResponse.accessToken(), null);
+        return buildResponse(result, ApiResponseType.SUCCESS);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<BaseResponseDto<AuthResponseDto>> refresh(@RequestHeader("Authorization") String accessToken,
+                                                                    @CookieValue("refreshToken") String refreshToken) {
+        String rawAccessToken = accessToken.replace("Bearer ", "");
+        AuthResponseDto authResponse = authService.refreshToken(rawAccessToken, refreshToken);
+        return buildResponse(authResponse, ApiResponseType.SUCCESS);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<BaseResponseDto<Void>> logout(@RequestHeader("Authorization") String accessToken,
+                                                        @CookieValue("refreshToken") String refreshToken,
+                                                        HttpServletResponse response) {
+        String rawAccessToken = accessToken.replace("Bearer ", "");
+        authService.logout(rawAccessToken, refreshToken);
+        deleteRefreshTokenCookie(response);
+        return buildResponse(null, ApiResponseType.SUCCESS);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\controller\JpaAuthController.java
+package mango.security.token_login.controller;
+
+import mango.security.token_login.dto.AuthResponseDto;
+import mango.security.token_login.dto.BaseResponseDto;
+import mango.security.token_login.dto.LoginRequestDto;
+import mango.security.token_login.dto.SignUpRequestDto;
+import mango.security.token_login.service.AuthService;
+import mango.security.token_login.type.ApiResponseType;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.servlet.http.HttpServletResponse;
+
+@RestController
+@RequestMapping("/api/auth/jpa")
+public class JpaAuthController extends AbstractAuthController {
+
+    private final AuthService authService;
+
+    public JpaAuthController(@Qualifier("jpaAuthService") AuthService authService) {
+        this.authService = authService;
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<BaseResponseDto<AuthResponseDto>> login(@RequestBody LoginRequestDto loginRequestDto,
+                                                                  HttpServletResponse response) {
+        AuthResponseDto authResponse = authService.login(loginRequestDto.email(), loginRequestDto.password());
+        addRefreshTokenCookie(response, authResponse.refreshToken());
+        AuthResponseDto result = new AuthResponseDto(authResponse.accessToken(), null);
+        return buildResponse(result, ApiResponseType.SUCCESS);
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<BaseResponseDto<AuthResponseDto>> signup(@RequestBody SignUpRequestDto signUpRequestDto,
+                                                                   HttpServletResponse response) {
+        AuthResponseDto authResponse = authService.signup(signUpRequestDto);
+        addRefreshTokenCookie(response, authResponse.refreshToken());
+        AuthResponseDto result = new AuthResponseDto(authResponse.accessToken(), null);
+        return buildResponse(result, ApiResponseType.SUCCESS);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<BaseResponseDto<AuthResponseDto>> refresh(@RequestHeader("Authorization") String accessToken,
+                                                                    @CookieValue("refreshToken") String refreshToken) {
+        String rawAccessToken = accessToken.replace("Bearer ", "");
+        AuthResponseDto authResponse = authService.refreshToken(rawAccessToken, refreshToken);
+        return buildResponse(authResponse, ApiResponseType.SUCCESS);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<BaseResponseDto<Void>> logout(@RequestHeader("Authorization") String accessToken,
+                                                        @CookieValue("refreshToken") String refreshToken,
+                                                        HttpServletResponse response) {
+        String rawAccessToken = accessToken.replace("Bearer ", "");
+        authService.logout(rawAccessToken, refreshToken);
+        deleteRefreshTokenCookie(response);
+        return buildResponse(null, ApiResponseType.SUCCESS);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\dto\AuthResponseDto.java
+package mango.security.token_login.dto;
+
+public record AuthResponseDto(String accessToken, String refreshToken) {
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\dto\BaseResponseDto.java
+package mango.security.token_login.dto;
+
+import lombok.Getter;
+import lombok.Setter;
+import mango.security.token_login.type.ApiResponseType;
+
+@Setter
+@Getter
+public class BaseResponseDto<T> {
+    // Getter & Setter
+    private String status;
+    private String message;
+    private T data;
+
+    public BaseResponseDto() {
+    }
+
+    public BaseResponseDto(ApiResponseType responseType, T data) {
+        this.status = responseType.getStatus();
+        this.message = responseType.getMessage();
+        this.data = data;
+    }
+}
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\dto\LoginRequestDto.java
+package mango.security.token_login.dto;
+
+public record LoginRequestDto (String email, String password) {
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\dto\SignUpRequestDto.java
+package mango.security.token_login.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
+public record SignUpRequestDto(
+        @Email(message = "유효한 이메일 주소를 입력하세요.")
+        @NotBlank(message = "이메일은 필수 입력값입니다.")
+        String email,
+
+        @NotBlank(message = "비밀번호는 필수 입력값입니다.")
+        String password
+) {}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\entity\Member.java
+package mango.security.token_login.entity;
+
+import mango.security.token_login.type.Role;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+@Entity
+@Getter
+@Setter
+@Table(name = "member")
+public class Member {
+    @Id
+    private String email;
+
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    private Role role;
+
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\exception\AuthException.java
+package mango.security.token_login.exception;
+
+import lombok.Getter;
+import mango.security.token_login.type.ApiResponseType;
+
+@Getter
+public class AuthException extends RuntimeException {
+    private final ApiResponseType responseType;
+
+    public AuthException(ApiResponseType responseType, String message) {
+        super(message);
+        this.responseType = responseType;
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\exception\GlobalExceptionHandler.java
+package mango.security.token_login.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+
+import mango.security.token_login.dto.BaseResponseDto;
+import mango.security.token_login.type.ApiResponseType;
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleAllExceptions(Exception ex) {
+        // 예외 발생 시 ApiResponseType.ERROR를 사용하고, 메시지를 세팅
+        BaseResponseDto<Object> response = new BaseResponseDto<>(ApiResponseType.ERROR, null);
+        response.setMessage(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleAuthenticationException(AuthenticationException ex) {
+        // 인증 예외 발생 시 ApiResponseType.UNAUTHORIZED를 사용하고, 메시지를 세팅
+        BaseResponseDto<Object> response = new BaseResponseDto<>(ApiResponseType.UNAUTHORIZED, null);
+        response.setMessage(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleAccessDeniedException(AccessDeniedException ex) {
+        // 접근 권한 예외 발생 시 ApiResponseType.FORBIDDEN를 사용하고, 메시지를 세팅
+        BaseResponseDto<Object> response = new BaseResponseDto<>(ApiResponseType.FORBIDDEN, null);
+        response.setMessage(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
+}
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\repository\MemberRepository.java
+package mango.security.token_login.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import mango.security.token_login.entity.Member;
+import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.ListCrudRepository;
+import org.springframework.data.repository.ListPagingAndSortingRepository;
+import org.springframework.data.repository.PagingAndSortingRepository;
+import org.springframework.data.repository.query.QueryByExampleExecutor;
+
+import java.util.Optional;
+
+/**
+ * JpaRepository는 인터페이스로서, CRUD 기능을 제공한다.
+ * JpaRepository의 제네릭 타입은 엔티티 타입과 식별자 타입이다.
+ * JpaRepository는 ListPagingAndSortingRepository, ListCrudRepository, QueryByExampleExecutor를 직접 상속 받는다.
+ * {@link ListPagingAndSortingRepository} {@link ListCrudRepository} {@link QueryByExampleExecutor}
+ * 또한 ListCrudRepository는 CrudRepository를 상속받고, ListPagingAndSortingRepository는 PagingAndSortingRepository를 상속받는다.
+ * {@link CrudRepository} {@link PagingAndSortingRepository}
+ * 마지막으로 CrudRepository와 PagingAndSortingRepository는 Repository를 상속받는다.
+ * {@link Repository}
+ */
+
+public interface MemberRepository extends JpaRepository<Member, String> {
+    Optional<Member> findByEmail(String email);
+}
+
+/**
+ * JpaRepository를 보면 @NoRepositoryBean이라는 어노테이션이 붙어있다.
+ * @see NoRepositoryBean
+ * 이 어노테이션은 스프링 데이터 JPA가 이 인터페이스를 빈으로 등록하지 않도록 하는 역할을 한다.
+ * 즉, 인터페이스 자체가 직접 빈으로등록되는 것이 아닌, JpaRepository를 상속받는 인터페이스가 빈으로 등록된다.
+ * 여기서는 MemberRepository가 빈으로 등록된다.
+ */
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\security\AbstractJwtAuthenticationFilter.java
+package mango.security.token_login.security;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import mango.security.token_login.token.AbstractJwtTokenProvider;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+public abstract class AbstractJwtAuthenticationFilter extends OncePerRequestFilter {
+    protected final AbstractJwtTokenProvider jwtTokenProvider;
+    protected final UserDetailsService userDetailsService;
+
+    public AbstractJwtAuthenticationFilter(AbstractJwtTokenProvider jwtTokenProvider, UserDetailsService userDetailsService) {
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.userDetailsService = userDetailsService;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain filterChain)
+            throws ServletException, IOException {
+        String token = resolveToken(req);
+        if (token != null && jwtTokenProvider.validateToken(token)) {
+            String username = jwtTokenProvider.getUsername(token);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        }
+        filterChain.doFilter(req, res);
+    }
+
+    protected String resolveToken(HttpServletRequest req) {
+        String bearerToken = req.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\security\CustomAccessDeniedHandler.java
+package mango.security.token_login.security;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.stereotype.Component;
+
+import jakarta.servlet.http.HttpServletResponse;
+import mango.security.token_login.dto.BaseResponseDto;
+import mango.security.token_login.type.ApiResponseType;
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
+
+@Component
+public class CustomAccessDeniedHandler implements AccessDeniedHandler {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public void handle(HttpServletRequest request, HttpServletResponse response,
+                    AccessDeniedException accessDeniedException) throws IOException {
+        BaseResponseDto<Object> errorResponse = new BaseResponseDto<>(ApiResponseType.FORBIDDEN, null);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(Integer.parseInt(ApiResponseType.FORBIDDEN.getStatus()));
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+    }
+}
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\security\CustomAuthenticationEntryPoint.java
+package mango.security.token_login.security;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import mango.security.token_login.dto.BaseResponseDto;
+import mango.security.token_login.type.ApiResponseType;
+
+import java.io.IOException;
+
+@Component
+public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response,
+                        AuthenticationException authException) throws IOException {
+        ApiResponseType responseType;
+
+        // 토큰 만료 예외 처리 (ExpiredJwtException 또는 JwtException 사용)
+        if (authException.getCause() != null &&
+                authException.getCause().getMessage() != null &&
+                authException.getCause().getMessage().toLowerCase().contains("expired")) {
+            responseType = ApiResponseType.OUTDATED_TOKEN;
+        } else {
+            responseType = ApiResponseType.INVALID_TOKEN;
+        }
+        response.setCharacterEncoding("UTF-8");
+        BaseResponseDto<Object> errorResponse = new BaseResponseDto<>(responseType, null);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(Integer.parseInt(responseType.getStatus()));
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+    }
+}
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\security\JwtInMemoryAuthenticationFilter.java
+package mango.security.token_login.security;
+
+import mango.security.token_login.token.InMemoryJwtTokenProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.security.core.userdetails.UserDetailsService;
+
+public class JwtInMemoryAuthenticationFilter extends AbstractJwtAuthenticationFilter {
+    public JwtInMemoryAuthenticationFilter(InMemoryJwtTokenProvider jwtTokenProvider,
+                                           @Qualifier("inMemoryUserDetailsService") UserDetailsService userDetailsService) {
+        super(jwtTokenProvider, userDetailsService);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\security\JwtJpaAuthenticationFilter.java
+package mango.security.token_login.security;
+
+import mango.security.token_login.token.JwtTokenProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.security.core.userdetails.UserDetailsService;
+
+public class JwtJpaAuthenticationFilter extends AbstractJwtAuthenticationFilter {
+    public JwtJpaAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
+                                      @Qualifier("jpaUserDetailsService") UserDetailsService userDetailsService) {
+        super(jwtTokenProvider, userDetailsService);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\service\AbstractAuthService.java
+package mango.security.token_login.service;
+
+import mango.security.token_login.dto.AuthResponseDto;
+import mango.security.token_login.exception.AuthException;
+import mango.security.token_login.token.JwtTokenProvider;
+import mango.security.token_login.token.RefreshTokenProvider;
+import mango.security.token_login.token.RefreshTokenStrategy;
+import mango.security.token_login.type.ApiResponseType;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+public abstract class AbstractAuthService implements AuthService {
+
+    protected final JwtTokenProvider jwtTokenProvider;
+    protected final RefreshTokenProvider refreshTokenProvider;
+    protected final PasswordEncoder passwordEncoder;
+    protected final RefreshTokenStrategy refreshTokenStrategy;
+
+    // 하위 구현체가 공급해야 하는 UserDetailsService
+    protected abstract UserDetailsService getUserDetailsService();
+
+    public AbstractAuthService(JwtTokenProvider jwtTokenProvider,
+                               RefreshTokenProvider refreshTokenProvider,
+                               PasswordEncoder passwordEncoder,
+                               RefreshTokenStrategy refreshTokenStrategy) {
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.refreshTokenProvider = refreshTokenProvider;
+        this.passwordEncoder = passwordEncoder;
+        this.refreshTokenStrategy = refreshTokenStrategy;
+    }
+
+    @Override
+    public AuthResponseDto login(String email, String password) {
+        UserDetails user = getUserDetailsService().loadUserByUsername(email);
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new AuthException(ApiResponseType.LOGIN_FAILED, "비밀번호가 일치하지 않습니다.");
+        }
+        String accessToken = jwtTokenProvider.generateToken(email);
+        String refreshToken = refreshTokenProvider.createRefreshToken(accessToken, refreshTokenStrategy);
+        return new AuthResponseDto(accessToken, refreshToken);
+    }
+
+    @Override
+    public AuthResponseDto refreshToken(String accessToken, String refreshToken) {
+        boolean valid = refreshTokenProvider.validate(accessToken, refreshToken, refreshTokenStrategy);
+        if (!valid) {
+            throw new AuthException(ApiResponseType.REFRESH_TOKEN_INVALID, "유효하지 않은 리프레시 토큰입니다.");
+        }
+        String username;
+        try {
+            username = jwtTokenProvider.getUsername(accessToken);
+        } catch (Exception e) {
+            throw new AuthException(ApiResponseType.OUTDATED_TOKEN, "액세스 토큰이 만료되었습니다.");
+        }
+        String newAccessToken = jwtTokenProvider.generateToken(username);
+        // 보안을 위해 새 리프레시 토큰도 발급
+        String newRefreshToken = refreshTokenProvider.createRefreshToken(newAccessToken, refreshTokenStrategy);
+        return new AuthResponseDto(newAccessToken, newRefreshToken);
+    }
+
+    @Override
+    public void logout(String accessToken, String refreshToken) {
+        refreshTokenProvider.remove(accessToken, refreshTokenStrategy);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\service\AuthService.java
+package mango.security.token_login.service;
+
+import mango.security.token_login.dto.AuthResponseDto;
+import mango.security.token_login.dto.SignUpRequestDto;
+
+public interface AuthService {
+    /**
+     * 로그인: email과 password를 받아서 accessToken과 refreshToken을 발급합니다.
+     * 실패 시 AuthException을 발생시킵니다.
+     */
+    AuthResponseDto login(String email, String password);
+
+    /**
+     * refreshToken을 이용해 새 accessToken (및 옵션에 따라 새 refreshToken)을 발급합니다.
+     * 유효하지 않으면 AuthException을 발생시킵니다.
+     */
+    AuthResponseDto refreshToken(String accessToken, String refreshToken);
+
+    /**
+     * 로그아웃: refreshToken 저장소에서 해당 토큰을 제거합니다.
+     * 실패 시 AuthException을 발생시킵니다.
+     */
+    void logout(String accessToken, String refreshToken);
+
+    /**
+     * 회원가입: SignUpRequestDto를 받아 신규 사용자를 등록하고, 가입 후 로그인 상태의 토큰을 발급합니다.
+     */
+    AuthResponseDto signup(SignUpRequestDto signUpRequestDto);
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\service\InMemoryAuthServiceImpl.java
+package mango.security.token_login.service;
+
+import mango.security.token_login.dto.AuthResponseDto;
+import mango.security.token_login.token.JwtTokenProvider;
+import mango.security.token_login.token.RefreshTokenProvider;
+import mango.security.token_login.token.RefreshTokenStrategy;
+import mango.security.token_login.dto.SignUpRequestDto;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.stereotype.Service;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Service("inMemoryAuthService")
+public class InMemoryAuthServiceImpl extends AbstractAuthService {
+
+    private final UserDetailsService inMemoryUserDetailsService;
+
+    public InMemoryAuthServiceImpl(
+            @Qualifier("inMemoryUserDetailsService") UserDetailsService inMemoryUserDetailsService,
+            JwtTokenProvider jwtTokenProvider,
+            RefreshTokenProvider refreshTokenProvider,
+            PasswordEncoder passwordEncoder
+    ) {
+        super(jwtTokenProvider, refreshTokenProvider, passwordEncoder, RefreshTokenStrategy.IN_MEMORY);
+        this.inMemoryUserDetailsService = inMemoryUserDetailsService;
+    }
+
+    @Override
+    protected UserDetailsService getUserDetailsService() {
+        return inMemoryUserDetailsService;
+    }
+
+    @Override
+    public AuthResponseDto signup(SignUpRequestDto signUpRequestDto) {
+        // 신규 사용자 추가 (기본 USER 역할)
+        ((InMemoryUserDetailsService) inMemoryUserDetailsService)
+                .addUser(signUpRequestDto.email(), signUpRequestDto.password(), "USER");
+        // 회원가입 후 자동 로그인하여 토큰 발급
+        return login(signUpRequestDto.email(), signUpRequestDto.password());
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\service\InMemoryUserDetailsService.java
+package mango.security.token_login.service;
+
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Service("inMemoryUserDetailsService")
+@RequiredArgsConstructor
+public class InMemoryUserDetailsService implements UserDetailsService {
+
+    private InMemoryUserDetailsManager userDetailsManager;
+    private final PasswordEncoder passwordEncoder;
+    private final ConcurrentHashMap<String, UserDetails> users = new ConcurrentHashMap<>();
+
+    @PostConstruct
+    public void init() {
+        UserDetails user = User.builder()
+                .username("user")
+                .password(passwordEncoder.encode("user"))
+                .roles("USER")
+                .build();
+
+        UserDetails admin = User.builder()
+                .username("admin")
+                .password(passwordEncoder.encode("admin"))
+                .roles("ADMIN")
+                .build();
+
+        // 기본 사용자 목록으로 InMemoryUserDetailsManager 초기화
+        this.userDetailsManager = new InMemoryUserDetailsManager(List.of(user, admin));
+        users.put("user", user);
+        users.put("admin", admin);
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) {
+        return userDetailsManager.loadUserByUsername(username);
+    }
+
+    public void addUser(String username, String password, String role) {
+        if (users.containsKey(username)) {
+            throw new IllegalStateException("User already exists");
+        }
+        UserDetails user = User.builder()
+                .username(username)
+                .password(passwordEncoder.encode(password))
+                .roles(role)
+                .build();
+        userDetailsManager.createUser(user);
+        users.put(username, user);
+    }
+
+    public boolean userExists(String username) {
+        return users.containsKey(username);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\service\JpaAuthServiceImpl.java
+package mango.security.token_login.service;
+
+import mango.security.token_login.dto.AuthResponseDto;
+import mango.security.token_login.token.JwtTokenProvider;
+import mango.security.token_login.token.RefreshTokenProvider;
+import mango.security.token_login.token.RefreshTokenStrategy;
+import mango.security.token_login.dto.SignUpRequestDto;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.stereotype.Service;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Service("jpaAuthService")
+public class JpaAuthServiceImpl extends AbstractAuthService {
+
+    private final UserDetailsService jpaUserDetailsService;
+
+    public JpaAuthServiceImpl(
+            @Qualifier("jpaUserDetailsService") UserDetailsService jpaUserDetailsService,
+            JwtTokenProvider jwtTokenProvider,
+            RefreshTokenProvider refreshTokenProvider,
+            PasswordEncoder passwordEncoder
+    ) {
+        // 항상 REDIS 전략 사용
+        super(jwtTokenProvider, refreshTokenProvider, passwordEncoder, RefreshTokenStrategy.REDIS);
+        this.jpaUserDetailsService = jpaUserDetailsService;
+    }
+
+    @Override
+    protected UserDetailsService getUserDetailsService() {
+        return jpaUserDetailsService;
+    }
+
+    @Override
+    public AuthResponseDto signup(SignUpRequestDto signUpRequestDto) {
+        // 신규 사용자 추가 (기본 USER 역할)
+        ((JpaUserDetailsService) jpaUserDetailsService)
+                .addUser(signUpRequestDto.email(), signUpRequestDto.password());
+        // 회원가입 후 자동 로그인하여 토큰 발급
+        return login(signUpRequestDto.email(), signUpRequestDto.password());
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\service\JpaUserDetailsService.java
+package mango.security.token_login.service;
+
+import java.util.Collections;
+import java.util.Optional;
+
+import mango.security.token_login.type.Role;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import lombok.RequiredArgsConstructor;
+import mango.security.token_login.entity.Member;
+import mango.security.token_login.repository.MemberRepository;
+
+@Service("jpaUserDetailsService")
+@RequiredArgsConstructor
+public class JpaUserDetailsService implements UserDetailsService{
+
+    private final MemberRepository memberRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException{
+        Optional<Member> member = memberRepository.findByEmail(email);
+        if (member.isEmpty()){
+            throw new UsernameNotFoundException("User not found");
+        } else {
+            return new User(member.get().getEmail(), member.get().getPassword(),
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + member.get().getRole().name())));
+        }
+    }
+
+    public void addUser(String email, String password) {
+        if (memberRepository.findByEmail(email).isPresent()) {
+            throw new IllegalStateException("User already exists");
+        }
+        Member member = new Member();
+        member.setEmail(email);
+        member.setPassword(passwordEncoder.encode(password));
+        member.setRole(Role.USER);
+        memberRepository.save(member);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\service\RedisKeyService.java
+package mango.security.token_login.service;
+
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import mango.security.token_login.token.CustomUUID;
+
+@Service
+public class RedisKeyService {
+
+    private final StringRedisTemplate redisTemplate;
+    private static final String SECRET_KEY_REDIS_KEY = "jwt:secret";
+
+    public RedisKeyService(StringRedisTemplate redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
+
+    // 매월 1일 자정에 실행 (cron 표현식은 서버 타임존에 따라 조정)
+    @Scheduled(cron = "0 0 0 1 * ?")
+    public void updateSecretKeyMonthly() {
+        String newSecret = CustomUUID.generateUUIDv4();
+        redisTemplate.opsForValue().set(SECRET_KEY_REDIS_KEY, newSecret);
+        System.out.println("JWT secret key updated: " + newSecret);
+    }
+
+    public String getCurrentSecretKey() {
+        String key = redisTemplate.opsForValue().get(SECRET_KEY_REDIS_KEY);
+        // 키가 없으면, 초기 생성 (예: 어플리케이션 시작 시)
+        if (key == null) {
+            key = CustomUUID.generateUUIDv4();
+            redisTemplate.opsForValue().set(SECRET_KEY_REDIS_KEY, key);
+        }
+        return key;
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\token\AbstractJwtTokenProvider.java
+package mango.security.token_login.token;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.JwtException;
+import org.springframework.beans.factory.annotation.Value;
+
+import java.security.Key;
+import java.util.Date;
+
+public abstract class AbstractJwtTokenProvider {
+
+    @Value("${jwt.accessToken.ttl}")
+    protected long expireTime;
+
+    // 각 구현체에서 secret key를 기반으로 Key 객체를 생성하여 리턴
+    protected abstract Key getKey();
+
+    public String generateToken(String username) {
+        Date now = new Date();
+        Date validity = new Date(now.getTime() + expireTime);
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(now)
+                .setExpiration(validity)
+                .signWith(getKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public String getUsername(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject();
+    }
+
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parserBuilder().setSigningKey(getKey()).build().parseClaimsJws(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\token\CustomUUID.java
+package mango.security.token_login.token;
+
+import java.security.SecureRandom;
+
+public class CustomUUID {
+    private static final SecureRandom random = createSeededRandom();
+
+    private static SecureRandom createSeededRandom() {
+        long currentTimeMillis = System.currentTimeMillis();
+
+        // 시간 기반 시드를 바이트 배열로 확장
+        byte[] timeSeed = new byte[32];
+        for (int i = 0; i < timeSeed.length; i++) {
+            timeSeed[i] = (byte) ((currentTimeMillis >> (i % 8) * 8) & 0xFF);
+        }
+
+        return new SecureRandom(timeSeed);
+    }
+
+    public static String generateUUIDv4() {
+        byte[] randomBytes = new byte[16];
+        random.nextBytes(randomBytes);
+
+        // version 4
+        randomBytes[6] &= 0x0f;
+        randomBytes[6] |= 0x40;
+
+        // variant (RFC 4122)
+        randomBytes[8] &= 0x3f;
+        randomBytes[8] |= 0x80;
+
+        return bytesToHex(randomBytes);
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        return String.format(
+                "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+                bytes[0], bytes[1], bytes[2], bytes[3],
+                bytes[4], bytes[5],
+                bytes[6], bytes[7],
+                bytes[8], bytes[9],
+                bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+        );
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\token\InMemoryJwtTokenProvider.java
+package mango.security.token_login.token;
+
+import io.jsonwebtoken.SignatureAlgorithm;
+import jakarta.annotation.PostConstruct;
+import org.springframework.stereotype.Component;
+
+import javax.crypto.spec.SecretKeySpec;
+import java.security.Key;
+
+@Component("inMemoryJwtTokenProvider")
+public class InMemoryJwtTokenProvider extends AbstractJwtTokenProvider {
+
+    private final InMemorySecretKeyHolder secretKeyHolder;
+    private Key key;
+
+    public InMemoryJwtTokenProvider(InMemorySecretKeyHolder secretKeyHolder) {
+        this.secretKeyHolder = secretKeyHolder;
+    }
+
+    @PostConstruct
+    public void init() {
+        updateKey();
+    }
+
+    // in-memory 방식은 매 호출 시 최신 secret key를 반영하도록 함
+    private void updateKey() {
+        String secret = secretKeyHolder.getSecretKey();
+        key = new SecretKeySpec(secret.getBytes(), SignatureAlgorithm.HS256.getJcaName());
+    }
+
+    @Override
+    protected Key getKey() {
+        updateKey();
+        return key;
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\token\InMemoryRefreshTokenStore.java
+package mango.security.token_login.token;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import mango.security.token_login.token.RefreshTokenProvider.RefreshTokenStore;
+
+@Component
+@Qualifier("inMemory")
+public class InMemoryRefreshTokenStore implements RefreshTokenStore {
+    private static class TokenInfo {
+        String refreshToken;
+        long expiresAt;
+
+        TokenInfo(String refreshToken, long expiresAt) {
+            this.refreshToken = refreshToken;
+            this.expiresAt = expiresAt;
+        }
+    }
+
+    private final Map<String, TokenInfo> store = new ConcurrentHashMap<>();
+
+    @Override public RefreshTokenStrategy strategy() {
+        return RefreshTokenStrategy.IN_MEMORY;
+    }
+
+    @Override
+    public void save(String accessToken, String refreshToken, long ttl) {
+        long expiresAt = System.currentTimeMillis() + ttl;
+        store.put(accessToken, new TokenInfo(refreshToken, expiresAt));
+    }
+
+    @Override
+    public boolean validate(String accessToken, String refreshToken) {
+        TokenInfo info = store.get(accessToken);
+        if(info == null) {
+            return false;
+        }
+        if(System.currentTimeMillis() >= info.expiresAt){
+            store.remove(accessToken);
+            return false;
+        }
+        return info.refreshToken.equals(refreshToken);
+    }
+
+    @Override
+    public void remove(String accessToken) {
+        store.remove(accessToken);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\token\InMemorySecretKeyHolder.java
+package mango.security.token_login.token;
+
+import lombok.Getter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import mango.security.token_login.util.SecretKeyUtil;
+
+@Getter
+@Component("inMemorySecretKeyHolder")
+public class InMemorySecretKeyHolder {
+    private static final Logger logger = LoggerFactory.getLogger(InMemorySecretKeyHolder.class);
+    private String secretKey;
+
+    public InMemorySecretKeyHolder() {
+        // 애플리케이션 시작 시 초기 secret key 생성
+        this.secretKey = SecretKeyUtil.generateSecretKey();
+    }
+
+    // 매월 1일 자정에 secret key 갱신 (서버 시간 기준)
+    @Scheduled(cron = "0 0 0 1 * ?")
+    public void updateSecretKey() {
+        secretKey = SecretKeyUtil.generateSecretKey();
+        logger.info("인메모리 JWT secret key 갱신됨: {}", secretKey);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\token\JpaRefreshTokenStore.java
+package mango.security.token_login.token;
+
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import mango.security.token_login.token.RefreshTokenProvider.RefreshTokenStore;
+
+@Component
+@Qualifier("jpa")
+@RequiredArgsConstructor
+public class JpaRefreshTokenStore implements RefreshTokenStore {
+    private final StringRedisTemplate redisTemplate;
+
+    @Override public RefreshTokenStrategy strategy() {
+        return RefreshTokenStrategy.REDIS;
+    }
+
+    @Override public void save(String accessToken, String refreshToken, long ttl) {
+        redisTemplate.opsForValue().set(accessToken, refreshToken, ttl);
+    }
+
+    @Override
+    public boolean validate(String accessToken, String refreshToken) {
+        String storedRefreshToken = redisTemplate.opsForValue().get(accessToken);
+        return storedRefreshToken != null && storedRefreshToken.equals(refreshToken);
+    }
+
+    @Override
+    public void remove(String accessToken) {
+        redisTemplate.delete(accessToken);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\token\JwtTokenProvider.java
+package mango.security.token_login.token;
+
+import mango.security.token_login.service.RedisKeyService;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import static io.jsonwebtoken.security.Keys.hmacShaKeyFor;
+import java.security.Key;
+
+@Component
+public class JwtTokenProvider extends AbstractJwtTokenProvider {
+
+    private final RedisKeyService redisKeyService;
+
+    public JwtTokenProvider(@Value("${jwt.accessToken.ttl}") long expireTime,
+                            RedisKeyService redisKeyService) {
+        this.expireTime = expireTime;
+        this.redisKeyService = redisKeyService;
+    }
+
+    @Override
+    protected Key getKey() {
+        String secret = redisKeyService.getCurrentSecretKey();
+        return hmacShaKeyFor(secret.getBytes());
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\token\RefreshTokenProvider.java
+package mango.security.token_login.token;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Component
+public class RefreshTokenProvider {
+
+    private final Map<RefreshTokenStrategy, RefreshTokenStore> strategyMap;
+
+    @Value("${jwt.refreshToken.ttl}")
+    private long refreshExpireTime;
+
+    public RefreshTokenProvider(List<RefreshTokenStore> storeList) {
+        this.strategyMap = storeList.stream()
+                .collect(Collectors.toMap(RefreshTokenStore::strategy, store -> store));
+    }
+
+    public String createRefreshToken(String accessToken, RefreshTokenStrategy strategy) {
+        String refreshToken = CustomUUID.generateUUIDv4();
+        getStore(strategy).save(accessToken, refreshToken, refreshExpireTime);
+        return refreshToken;
+    }
+
+    public boolean validate(String accessToken, String refreshToken, RefreshTokenStrategy strategy) {
+        return getStore(strategy).validate(accessToken, refreshToken);
+    }
+
+    public void remove(String accessToken, RefreshTokenStrategy strategy) {
+        getStore(strategy).remove(accessToken);
+    }
+
+    private RefreshTokenStore getStore(RefreshTokenStrategy strategy) {
+        RefreshTokenStore store = strategyMap.get(strategy);
+        if (store == null) {
+            throw new IllegalArgumentException("No RefreshTokenStore found for strategy: " + strategy);
+        }
+        return store;
+    }
+
+    public interface RefreshTokenStore {
+        RefreshTokenStrategy strategy();
+        void save(String accessToken, String refreshToken, long ttl); // TTL 단위로
+        boolean validate(String accessToken, String refreshToken);     // 값 일치 확인
+        void remove(String accessToken);
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\token\RefreshTokenStrategy.java
+package mango.security.token_login.token;
+
+public enum RefreshTokenStrategy {
+    IN_MEMORY,
+    REDIS
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\type\ApiResponseType.java
+package mango.security.token_login.type;
+
+import lombok.Getter;
+
+@Getter
+public enum ApiResponseType {
+    SUCCESS("200", "성공"),
+    USER_NOT_FOUND("404", "사용자를 찾을 수 없음"),
+    INVALID_TOKEN("498", "유효하지 않은 토큰"),
+    FORBIDDEN("403", "접근 권한 없음"),
+    OUTDATED_TOKEN("419", "토큰 만료"),
+    ERROR("500", "서버 오류"),
+    UNAUTHORIZED("401", "인증 실패"),
+    LOGIN_FAILED("400", "로그인 실패"),
+    REFRESH_TOKEN_EXPIRED("440", "리프레시 토큰 만료"),
+    REFRESH_TOKEN_INVALID("499", "유효하지 않은 리프레시 토큰");
+
+    private final String status;
+    private final String message;
+
+    ApiResponseType(String status, String message) {
+        this.status = status;
+        this.message = message;
+    }
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\type\Role.java
+package mango.security.token_login.type;
+
+public enum Role {
+    USER, ADMIN
+}
+
+
+C:\Users\tom99\study-security\token-login\src\main\java\mango\security\token_login\util\SecretKeyUtil.java
+package mango.security.token_login.util;
+
+import java.security.SecureRandom;
+
+public class SecretKeyUtil {
+    private static final SecureRandom secureRandom = new SecureRandom();
+
+    public static String generateSecretKey() {
+        byte[] keyBytes = new byte[32];
+        secureRandom.nextBytes(keyBytes);
+        return bytesToHex(keyBytes);
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+}
+
+

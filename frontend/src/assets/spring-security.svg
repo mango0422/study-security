@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">  
+  <!-- 네온 효과를 위한 다양한 그림자 -->
+  <defs>
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    
+    <!-- 노이즈 패턴 -->
+    <pattern id="noisePattern" width="100" height="100" patternUnits="userSpaceOnUse">
+      <rect width="100" height="100" fill="#00FFA0" opacity="0.05"/>
+      <rect x="20" y="10" width="5" height="5" fill="#FFFFFF" opacity="0.1"/>
+      <rect x="50" y="30" width="3" height="3" fill="#FFFFFF" opacity="0.08"/>
+      <rect x="70" y="50" width="4" height="4" fill="#FFFFFF" opacity="0.07"/>
+      <rect x="30" y="70" width="6" height="6" fill="#FFFFFF" opacity="0.09"/>
+    </pattern>
+    
+    <!-- 불규칙한 깜빡임 효과 -->
+    <filter id="flickerEffect">
+      <feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="2" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+  
+  <!-- 불규칙한 네온 외곽선 효과 -->
+  <path d="M51.475 5.165 29.983 0 8.525 5.165v16.53h11.393a9.51 9.51 0 0 0 0 2.385H8.525v7.765C8.525 49.668 29.985 60 29.985 60s21.455-10.333 21.455-28.145V24.088h-11.363a9.04 9.04 0 0 0 0-2.385h11.395zM30 30.655h-0.015a7.773 7.773 0 1 1 0.015 0zm-0.015-11.448a2.01 2.01 0 0 0-0.925 3.8v0.52l0.595 0.593v0.398l0.398 0.397v0.398l-0.35 0.35 0.375 0.615v0.398l-0.4 0.472 0.558 0.555 0.615-0.615V23.045a2.01 2.01 0 0 0-0.865-3.838zm0 2.09a0.747 0.747 0 1 1 0.745-0.747 0.747 0.747 0 0 1-0.745 0.75z" 
+        stroke="#00FFA0" 
+        stroke-width="1.2" 
+        stroke-dasharray="0.5,0.1"
+        fill="none" 
+        filter="url(#neonGlow)"/>
+  
+  <!-- 깨진 부분이 있는 네온 내부 채우기 -->
+  <path d="M51.475 5.165 29.983 0 8.525 5.165v16.53h11.393a9.51 9.51 0 0 0 0 2.385H8.525v7.765C8.525 49.668 29.985 60 29.985 60s21.455-10.333 21.455-28.145V24.088h-11.363a9.04 9.04 0 0 0 0-2.385h11.395zM30 30.655h-0.015a7.773 7.773 0 1 1 0.015 0zm-0.015-11.448a2.01 2.01 0 0 0-0.925 3.8v0.52l0.595 0.593v0.398l0.398 0.397v0.398l-0.35 0.35 0.375 0.615v0.398l-0.4 0.472 0.558 0.555 0.615-0.615V23.045a2.01 2.01 0 0 0-0.865-3.838zm0 2.09a0.747 0.747 0 1 1 0.745-0.747 0.747 0.747 0 0 1-0.745 0.75z" 
+        fill="url(#noisePattern)" 
+        opacity="0.7"
+        filter="url(#flickerEffect)"/>
+  
+  <!-- 깜빡이는 부분 효과 -->
+  <g opacity="0.8">
+    <path d="M30 21.3a2.01 2.01 0 0 0-0.925 3.8v0.52l0.595 0.593v0.398l0.398 0.397v0.398l-0.35 0.35 0.375 0.615v0.398l-0.4 0.472 0.558 0.555 0.615-0.615V23.045a2.01 2.01 0 0 0-0.865-3.838z" 
+          fill="#FFFFFF" 
+          opacity="0.9"/>
+    
+    <!-- 깨진 부분 효과 -->
+    <path d="M15 12 L18 14 L14 15" stroke="#00FFA0" stroke-width="0.7" fill="none" opacity="0.6"/>
+    <path d="M42 18 L45 16 L43 20" stroke="#00FFA0" stroke-width="0.7" fill="none" opacity="0.6"/>
+    <path d="M35 48 L38 45 L40 48" stroke="#00FFA0" stroke-width="0.7" fill="none" opacity="0.7"/>
+    <path d="M22 40 L20 43 L24 42" stroke="#00FFA0" stroke-width="0.7" fill="none" opacity="0.5"/>
+  </g>
+  
+  <!-- 불규칙한 밝은 네온 효과 -->
+  <path d="M51.475 5.165 29.983 0 8.525 5.165v16.53h11.393a9.51 9.51 0 0 0 0 2.385H8.525v7.765C8.525 49.668 29.985 60 29.985 60s21.455-10.333 21.455-28.145V24.088h-11.363a9.04 9.04 0 0 0 0-2.385h11.395zM30 30.655h-0.015a7.773 7.773 0 1 1 0.015 0zm-0.015-11.448a2.01 2.01 0 0 0-0.925 3.8v0.52l0.595 0.593v0.398l0.398 0.397v0.398l-0.35 0.35 0.375 0.615v0.398l-0.4 0.472 0.558 0.555 0.615-0.615V23.045a2.01 2.01 0 0 0-0.865-3.838zm0 2.09a0.747 0.747 0 1 1 0.745-0.747 0.747 0.747 0 0 1-0.745 0.75z" 
+        stroke="#FFFFFF" 
+        stroke-width="0.3"
+        stroke-dasharray="1,0.5" 
+        fill="none" 
+        opacity="0.7"/>
+</svg>

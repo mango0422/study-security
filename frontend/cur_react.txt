@@ -1,0 +1,653 @@
+C:\Users\tom99\study-security\frontend\src\api\core\auth-server.ts
+// src/api/core/auth-server.ts
+import { createAxiosInstance } from './base'
+
+const authServer = createAxiosInstance('http://localhost:9000')
+
+export default authServer
+
+
+C:\Users\tom99\study-security\frontend\src\api\core\backend.ts
+// src/api/core/backend.ts
+import { createAxiosInstance } from './base'
+import Cookies from 'js-cookie'
+
+const backend = createAxiosInstance('http://localhost:8080/api')
+
+// 토큰 자동 부착
+backend.interceptors.request.use(config => {
+  const token = Cookies.get('accessToken')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+export default backend
+
+
+C:\Users\tom99\study-security\frontend\src\api\core\base.ts
+// src/api/core/base.ts
+import axios, { AxiosInstance } from 'axios'
+
+export const createAxiosInstance = (baseURL: string): AxiosInstance => {
+  return axios.create({
+    baseURL,
+    timeout: 10000,
+    withCredentials: true,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+
+C:\Users\tom99\study-security\frontend\src\api\core\http.ts
+// src/api/core/http.ts
+import { AxiosInstance, Method, AxiosRequestConfig } from 'axios'
+
+export const createApiMethod =
+  (instance: AxiosInstance, method: Method) =>
+  <T>(config: AxiosRequestConfig): Promise<T> =>
+    instance({ ...config, method }).then(res => res.data)
+
+export const createHttpClient = (instance: AxiosInstance) => ({
+  get: createApiMethod(instance, 'GET'),
+  post: createApiMethod(instance, 'POST'),
+  put: createApiMethod(instance, 'PUT'),
+  patch: createApiMethod(instance, 'PATCH'),
+  delete: createApiMethod(instance, 'DELETE'),
+})
+
+
+C:\Users\tom99\study-security\frontend\src\api\core\index.ts
+// src/api/core/index.ts
+export * from './http'
+export { default as authServer } from './auth-server'
+export { default as backend } from './backend'
+export * from './base'
+
+
+C:\Users\tom99\study-security\frontend\src\api\auth-api.ts
+// src/api/auth-api.ts
+import { createHttpClient, backend, authServer } from './core'
+
+const backendHttp = createHttpClient(backend)
+const oauthHttp = createHttpClient(authServer)
+
+interface AuthResponse {
+  accessToken: string
+  refreshToken: string
+}
+
+// JPA 기반 인증 API 모듈
+export const jpaAuth = {
+  login: (username: string, password: string) =>
+    backendHttp.post<AuthResponse>({ url: '/auth/jpa/login', data: { username, password } }),
+  // 현재 백엔드에 회원가입 API가 없다면 주석 처리하거나 추후 구현
+  // signup: (username: string, password: string) =>
+  //   backendHttp.post({ url: '/auth/jpa/signup', data: { username, password } }),
+  logout: () => backendHttp.delete({ url: '/auth/jpa/logout' }),
+  // 체크 엔드포인트가 있다면 추가 가능
+  // check: () => backendHttp.get({ url: '/auth/jpa/check' }),
+}
+
+// InMemory 기반 인증 API 모듈
+export const inMemoryAuth = {
+  login: (username: string, password: string) =>
+    backendHttp.post<AuthResponse>({ url: '/auth/inmemory/login', data: { username, password } }),
+  // signup: (username: string, password: string) =>
+  //   backendHttp.post({ url: '/auth/inmemory/signup', data: { username, password } }),
+  logout: () => backendHttp.delete({ url: '/auth/inmemory/logout' }),
+  // check: () => backendHttp.get({ url: '/auth/inmemory/check' }),
+}
+
+// OAuth 관련은 기존대로
+export const oauthAuth = {
+  login: () => {
+    window.location.href =
+      'http://localhost:9000/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:5173/oauth/callback&response_type=code'
+  },
+  signup: () => {
+    window.location.href =
+      'http://localhost:9000/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:5173/oauth/callback&response_type=code'
+  },
+  logout: () =>
+    oauthHttp.post({
+      url: '/api/auth/oauth/logout',
+    }),
+}
+
+
+C:\Users\tom99\study-security\frontend\src\components\Nav.tsx
+// src/components/Nav.tsx
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useLoginType } from '../hooks/useLoginType'
+import securityIcon from '../assets/spring-security.svg'
+
+export default function Nav() {
+  const location = useLocation()
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const navigate = useNavigate()
+  const loginType = useLoginType()
+
+  const navigateToHome = () => {
+    navigate('/home')
+  }
+
+  useEffect(() => {
+    setIsLoggedIn(location.pathname === '/home')
+  }, [location])
+
+  return (
+    <nav className="fixed top-0 right-0 left-0 z-10 bg-stone-700 shadow-md">
+      <div className="container mx-auto flex items-center justify-between p-4">
+        <div className="flex items-center space-x-3" onClick={navigateToHome}>
+          <div className="h-12 w-12">
+            <img src={securityIcon} alt="Spring Security Logo" className="neon-svg" />
+          </div>
+          <div className="text-4xl font-bold">
+            <span className="neon-spring">Spring</span>
+            <span className="neon-security"> Security</span>
+          </div>
+        </div>
+        <div className="flex space-x-4">
+          {isLoggedIn ? (
+            <>
+              <Link
+                to="/home"
+                className={`transition-colors hover:text-[#00FF80] ${location.pathname === '/home' ? 'text-[#00FF80]' : ''}`}
+              >
+                Home
+              </Link>
+              <Link to="/logout" className="transition-colors hover:text-[#00FF80]">
+                Logout
+              </Link>
+            </>
+          ) : (
+            <>
+              {/* 로그인 페이지 링크는 현재 로그인 타입에 따라 다르게 지정 */}
+              <Link
+                to={
+                  loginType === 'JPA'
+                    ? '/jpa/login'
+                    : loginType === 'OAuth'
+                      ? '/oauth/login'
+                      : '/inmemory/login'
+                }
+                className={`transition-colors hover:text-[#00FF80] ${location.pathname.endsWith('login') ? 'text-[#00FF80]' : ''}`}
+              >
+                Login
+              </Link>
+              <Link
+                to="/signup"
+                className={`transition-colors hover:text-[#00FF80] ${location.pathname === '/signup' ? 'text-[#00FF80]' : ''}`}
+              >
+                Signup
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    </nav>
+  )
+}
+
+
+C:\Users\tom99\study-security\frontend\src\components\NeonTwinGlowBox.tsx
+// import React from 'react'
+
+// export default function NeonTwinGlowBox() {
+//   return (
+//     <div className="relative flex h-12 w-48 items-center justify-center rounded-md bg-black">
+//       <svg
+//         className="pointer-events-none absolute top-0 left-0 h-full w-full"
+//         viewBox="0 0 100 100"
+//         preserveAspectRatio="none"
+//       >
+//         {/* 하단 중앙에서 시작해서 왼쪽으로 돌고 상단 중앙에서 끝나는 경로 */}
+//         <path
+//           d="M 50,99 L 1,99 L 1,1 L 50,1"
+//           fill="none"
+//           stroke="#00ffe1"
+//           strokeWidth="1.5"
+//           pathLength="1"
+//           strokeDasharray="0.025 0.975"
+//           strokeDashoffset="1"
+//           className="glow-one"
+//         />
+
+//         {/* 하단 중앙에서 시작해서 오른쪽으로 돌고 상단 중앙에서 끝나는 경로 */}
+//         <path
+//           d="M 50,99 L 99,99 L 99,1 L 50,1"
+//           fill="none"
+//           stroke="#00ffe1"
+//           strokeWidth="1.5"
+//           pathLength="1"
+//           strokeDasharray="0.025 0.975"
+//           strokeDashoffset="1"
+//           className="glow-two"
+//         />
+//       </svg>
+//       <div className="z-10 font-bold text-white">LOGO</div>
+//     </div>
+//   )
+// }
+
+import React from 'react';
+
+export default function NeonTwinGlowBox() {
+  return (
+    <div className="relative flex h-12 w-48 items-center justify-center rounded-md bg-black">
+      <svg
+        className="pointer-events-none absolute top-0 left-0 h-full w-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        {/* 하단 중앙에서 시작해서 왼쪽으로 돌고 상단 중앙에서 끝나는 경로 */}
+        <path
+          d="M 50,99 L 1,99 L 1,1 L 50,1"
+          fill="none"
+          stroke="#00ffe1"
+          strokeWidth="1.5"
+          pathLength="1" 
+          strokeDasharray="0.025 0.975"
+          strokeDashoffset="1"
+          className="glow-one"
+        />
+
+        {/* 하단 중앙에서 시작해서 오른쪽으로 돌고 상단 중앙에서 끝나는 경로 */}
+        <path
+          d="M 50,99 L 99,99 L 99,1 L 50,1"
+          fill="none"
+          stroke="#00ffe1"
+          strokeWidth="1.5"
+          pathLength="1"
+          strokeDasharray="0.025 0.975"
+          strokeDashoffset="1"
+          className="glow-two"
+        />
+      </svg>
+      <div className="z-10 font-bold text-white">LOGO</div>
+    </div>
+  )
+}
+
+C:\Users\tom99\study-security\frontend\src\components\ProtectedRoute.tsx
+import { Navigate, Outlet } from 'react-router-dom'
+import { useAuth } from '../context/auth'
+
+export default function ProtectedRoute() {
+  const { isAuthenticated } = useAuth()
+
+  return isAuthenticated ? <Outlet /> : <Navigate to="/" replace />
+}
+
+
+C:\Users\tom99\study-security\frontend\src\context\auth.tsx
+// src/context/auth.tsx
+import { createContext, useContext, useEffect, useState } from 'react'
+import { useLoginType } from '../hooks/useLoginType'
+import { jpaAuth, inMemoryAuth, oauthAuth } from '../api/auth-api'
+
+interface AuthContextType {
+  isAuthenticated: boolean
+  login: (username: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType>({
+  isAuthenticated: false,
+  login: async () => {},
+  logout: async () => {},
+})
+
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const loginType = useLoginType()
+  const authApi = loginType === 'JPA' ? jpaAuth : loginType === 'OAuth' ? oauthAuth : inMemoryAuth
+
+  // 인증 상태 확인 (추가 check 엔드포인트가 있다면 사용)
+  useEffect(() => {
+    // 예: authApi.check && authApi.check().then(() => setIsAuthenticated(true)).catch(() => setIsAuthenticated(false))
+  }, [authApi])
+
+  const login = async (username: string, password: string) => {
+    await authApi.login(username, password)
+    // 서버에서 쿠키(혹은 localStorage 등)로 토큰 관리 시 성공 시 상태 업데이트
+    setIsAuthenticated(true)
+  }
+
+  const logout = async () => {
+    await authApi.logout()
+    setIsAuthenticated(false)
+  }
+
+  return (
+    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export const useAuthContext = () => useContext(AuthContext)
+
+
+C:\Users\tom99\study-security\frontend\src\hooks\useAuth.ts
+// src/hooks/useAuth.ts
+import { useLoginType } from './useLoginType'
+import { jpaAuth, inMemoryAuth, oauthAuth } from '../api/auth-api'
+
+export const useAuth = () => {
+  const loginType = useLoginType()
+  if (loginType === 'JPA') return jpaAuth
+  if (loginType === 'OAuth') return oauthAuth
+  return inMemoryAuth
+}
+
+
+C:\Users\tom99\study-security\frontend\src\hooks\useLoginType.ts
+// src/hooks/useLoginType.ts
+import { useLocation } from 'react-router-dom'
+
+export const useLoginType = (): 'JPA' | 'OAuth' | 'InMemory' => {
+  const location = useLocation()
+  if (location.pathname.startsWith('/jpa')) return 'JPA'
+  if (location.pathname.startsWith('/oauth')) return 'OAuth'
+  return 'InMemory'
+}
+
+
+C:\Users\tom99\study-security\frontend\src\pages\Home.tsx
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth'
+import { useLoginType } from '../hooks/useLoginType'
+
+export default function Home() {
+  const navigate = useNavigate()
+  const auth = useAuth()
+  const loginType = useLoginType()
+
+  const handleLogout = async () => {
+    try {
+      await auth.logout()
+      navigate('/')
+    } catch (err) {
+      console.error('Logout failed', err)
+    }
+  }
+
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="form-container text-center">
+        <h1 className="mb-4 text-2xl font-bold">Welcome Home ({loginType})</h1>
+        <p className="mb-6">This is your home page.</p>
+        <button onClick={handleLogout} className="btn">
+          Logout
+        </button>
+      </div>
+    </div>
+  )
+}
+
+
+C:\Users\tom99\study-security\frontend\src\pages\index.ts
+export { default as Home } from './Home.tsx'
+export { default as Login } from './Login.tsx'
+export { default as Signup } from './Signup.tsx'
+export { default as OauthCallback } from './OauthCallback.tsx'
+
+
+C:\Users\tom99\study-security\frontend\src\pages\LandingPage.tsx
+// src/pages/LandingPage.tsx
+import { useNavigate } from 'react-router-dom'
+
+export default function LandingPage() {
+  const navigate = useNavigate()
+
+  const goToLogin = (mode: 'inmemory' | 'jpa' | 'oauth') => {
+    // 각각의 로그인 페이지 경로로 이동합니다.
+    if (mode === 'inmemory') {
+      navigate('/inmemory/login')
+    } else if (mode === 'jpa') {
+      navigate('/jpa/login')
+    } else if (mode === 'oauth') {
+      navigate('/oauth/login')
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-100">
+      <h1 className="mb-6 text-4xl font-bold">Welcome to the Auth Demo</h1>
+      <p className="mb-8 text-lg">아래 버튼을 눌러 원하는 인증 방식을 선택하세요.</p>
+      <div className="flex flex-col space-y-4">
+        <button
+          onClick={() => goToLogin('inmemory')}
+          className="rounded bg-blue-500 px-6 py-3 text-white hover:bg-blue-600"
+        >
+          InMemory 로그인
+        </button>
+        <button
+          onClick={() => goToLogin('jpa')}
+          className="rounded bg-green-500 px-6 py-3 text-white hover:bg-green-600"
+        >
+          JPA (Redis) 로그인
+        </button>
+        <button
+          onClick={() => goToLogin('oauth')}
+          className="rounded bg-purple-500 px-6 py-3 text-white hover:bg-purple-600"
+        >
+          OAuth 로그인
+        </button>
+      </div>
+    </div>
+  )
+}
+
+
+C:\Users\tom99\study-security\frontend\src\pages\Login.tsx
+// src/pages/Login.tsx
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth'
+import { useLoginType } from '../hooks/useLoginType'
+
+export default function Login() {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const navigate = useNavigate()
+  const auth = useAuth()
+  const loginType = useLoginType()
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await auth.login(username, password)
+      navigate('/home')
+    } catch (err) {
+      console.error('Login failed', err)
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <form onSubmit={handleLogin} className="form-container">
+        <h1 className="mb-2 text-xl font-semibold">Login ({loginType})</h1>
+        <input
+          type="text"
+          placeholder="Username"
+          className="input mb-2"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          className="input mb-4"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+        />
+        <button type="submit" className="btn">
+          Login
+        </button>
+        <div className="mt-4 text-center text-sm">
+          Don't have an account?{' '}
+          <Link to="/signup" className="text-[var(--color-primary)]">
+            Sign up
+          </Link>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+
+C:\Users\tom99\study-security\frontend\src\pages\OauthCallback.tsx
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
+
+export default function OauthCallback() {
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const exchangeCodeForToken = async () => {
+      const code = new URLSearchParams(window.location.search).get('code')
+      if (!code) {
+        console.error('No code in callback URL')
+        return
+      }
+
+      try {
+        const response = await axios.post('http://localhost:9000/oauth2/token', {
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: 'http://localhost:5173/oauth/callback',
+          client_id: 'YOUR_CLIENT_ID',
+          client_secret: 'YOUR_CLIENT_SECRET', // 필요 시
+        })
+
+        const { access_token, refresh_token } = response.data
+        localStorage.setItem('accessToken', access_token)
+        localStorage.setItem('refreshToken', refresh_token)
+
+        navigate('/home')
+      } catch (err) {
+        console.error('Token exchange failed', err)
+      }
+    }
+
+    exchangeCodeForToken()
+  }, [navigate])
+
+  return <div>OAuth 처리 중입니다...</div>
+}
+
+
+C:\Users\tom99\study-security\frontend\src\pages\Signup.tsx
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth'
+import { useLoginType } from '../hooks/useLoginType'
+
+export default function Signup() {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const navigate = useNavigate()
+  const auth = useAuth()
+  const loginType = useLoginType()
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await auth.signup(username, password)
+      navigate('/')
+    } catch (err) {
+      console.error('Signup failed', err)
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg-light)] dark:bg-[var(--color-bg-dark)]">
+      <form onSubmit={handleSignup} className="form-container">
+        <h1 className="mb-4 text-2xl font-bold">Sign Up ({loginType})</h1>
+        <input
+          className="input mb-3"
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+        />
+        <input
+          className="input mb-4"
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+        />
+        <button className="btn" type="submit">
+          Sign Up
+        </button>
+        <div className="mt-4 text-center text-sm">
+          Already have an account?{' '}
+          <Link to="/" className="text-[var(--color-primary)]">
+            Login
+          </Link>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+
+C:\Users\tom99\study-security\frontend\src\App.tsx
+// src/App.tsx
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Nav from './components/Nav'
+import { AuthProvider } from './context/auth'
+import { Home, Login, Signup, OauthCallback, LandingPage } from './pages'
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <div className="flex min-h-screen flex-col">
+          <Nav />
+          <main className="mt-16 flex-grow">
+            <Routes>
+              {/* 기본 랜딩 페이지 */}
+              <Route path="/" element={<LandingPage />} />
+              {/* 각 인증 방식별 로그인 경로 */}
+              <Route path="/inmemory/login" element={<Login />} />
+              <Route path="/jpa/login" element={<Login />} />
+              <Route path="/oauth/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/home" element={<Home />} />
+              <Route path="/oauth/callback" element={<OauthCallback />} />
+            </Routes>
+          </main>
+        </div>
+      </AuthProvider>
+    </BrowserRouter>
+  )
+}
+
+
+C:\Users\tom99\study-security\frontend\src\main.tsx
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.tsx'
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+)
+
+
+C:\Users\tom99\study-security\frontend\src\vite-env.d.ts
+/// <reference types="vite/client" />
+
+

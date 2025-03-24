@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Logout</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #121212;
+                --text-color: #e0e0e0;
+            }
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+        .message-container {
+            padding: 20px;
+            border-radius: 5px;
+            background-color: var(--bg-color);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .login-link {
+            margin-top: 20px;
+        }
+        .login-link a {
+            color: #007bff;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+<div class="message-container">
+    <h1>You have been logged out</h1>
+    <p>Click below to log in again.</p>
+    <div class="login-link">
+        <a th:href="${loginType == 'jpa'} ? @{/jpa/login} : @{/inmemory/login}">Log in</a>
+    </div>
+</div>
+</body>
+</html>

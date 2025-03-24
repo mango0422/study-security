@@ -1,0 +1,141 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg-light: #f8f9fa;
+  --color-bg-dark: #555555;
+  --color-text-light: #212529;
+  --color-text-dark: #e9ecef;
+  --color-primary: #02f969;
+  --color-primary-dark: #378823;
+  --color-error: #dc26d6;
+  --color-border: #e5e7eb;
+}
+
+@layer base {
+  html {
+    @apply bg-[var(--color-bg-light)] text-[var(--color-text-light)];
+    font-family: 'Inter', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    html {
+      @apply bg-[var(--color-bg-dark)] text-[var(--color-text-dark)];
+    }
+  }
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded border border-[var(--color-border)] p-2 transition outline-none;
+    @apply bg-white text-[var(--color-text-light)];
+  }
+  .input:focus {
+    @apply border-[var(--color-primary-dark)];
+  }
+  @media (prefers-color-scheme: dark) {
+    .input {
+      @apply border-[#2c2c2c] bg-[#1e1e1e] text-[var(--color-text-dark)];
+    }
+  }
+
+  .btn {
+    @apply w-full rounded bg-[var(--color-primary)] p-2 font-semibold text-white;
+    transition: background-color 0.2s;
+  }
+  .btn:hover {
+    @apply bg-[var(--color-primary-dark)];
+  }
+
+  .form-container {
+    @apply mx-auto w-full max-w-sm rounded bg-white p-6 shadow-md;
+  }
+  @media (prefers-color-scheme: dark) {
+    .form-container {
+      @apply bg-[#444444];
+    }
+  }
+
+  /* Spring Security 네온사인 애니메이션 */
+  @keyframes neonSpring {
+    0%,
+    100% {
+      text-shadow:
+        0 0 5px #00ff80,
+        0 0 10px #00ff80,
+        0 0 20px #00ff80,
+        0 0 40px #00ff80;
+      color: #00ff80;
+    }
+    50% {
+      text-shadow:
+        0 0 3px #008040,
+        0 0 8px #008040,
+        0 0 15px #008040;
+      color: #00cc66;
+    }
+  }
+
+  @keyframes neonSecurity {
+    0%,
+    100% {
+      text-shadow:
+        0 0 5px #008040,
+        0 0 10px #008040,
+        0 0 20px #008040,
+        0 0 40px #008040;
+      color: #008040;
+    }
+    50% {
+      text-shadow:
+        0 0 3px #004020,
+        0 0 8px #004020,
+        0 0 15px #004020;
+      color: #006030;
+    }
+  }
+
+  /* 서로 다른 깜빡임 속도로 설정 */
+  .neon-spring,
+  .neon-security,
+  .neon-svg {
+    font-family: 'Arial', sans-serif;
+    font-size: 2.5rem;
+    font-weight: bold;
+    -webkit-user-select: none; /* 드래그 방지 (Safari) */
+    user-select: none; /* 드래그 방지 */
+    cursor: default; /* 마우스 모양 변경 방지 */
+  }
+
+  .neon-spring {
+    animation: neonSpring 1.5s infinite alternate;
+  }
+
+  .neon-security {
+    animation: neonSecurity 2s infinite alternate;
+  }
+
+  /* SVG 아이콘 네온 효과 */
+  @keyframes flicker {
+    0%,
+    100% {
+      filter: drop-shadow(0 0 5px #00a060) drop-shadow(0 0 10px #00a060);
+      opacity: 1;
+    }
+    40% {
+      filter: drop-shadow(0 0 3px #008040) drop-shadow(0 0 7px #008040);
+      opacity: 0.8;
+    }
+    70% {
+      filter: drop-shadow(0 0 6px #00a060) drop-shadow(0 0 12px #00a060);
+      opacity: 0.9;
+    }
+    90% {
+      filter: drop-shadow(0 0 4px #00a060) drop-shadow(0 0 8px #00a060);
+      opacity: 0.7;
+    }
+  }
+
+  /* 네온 SVG 애니메이션 */
+  .neon-svg {
+    animation: flicker 3s infinite alternate;
+  }
+}
