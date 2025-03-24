@@ -13,7 +13,9 @@ public enum ApiResponseType {
     UNAUTHORIZED("401", "인증 실패"),
     LOGIN_FAILED("400", "로그인 실패"),
     REFRESH_TOKEN_EXPIRED("440", "리프레시 토큰 만료"),
-    REFRESH_TOKEN_INVALID("499", "유효하지 않은 리프레시 토큰");
+    REFRESH_TOKEN_INVALID("499", "유효하지 않은 리프레시 토큰"),
+    INVALID_REQUEST("422", "잘못된 요청입니다."),
+    CLIENT_NOT_FOUND("404", "등록되지 않은 클라이언트입니다.");
 
     private final String status;
     private final String message;
