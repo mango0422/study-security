@@ -429,11 +429,15 @@ package mango.security.authorizationServer.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+import jakarta.persistence.Table;
+import lombok.Getter;
 
 import java.io.Serializable;
 import java.util.Objects;
 
 @Embeddable
+@Getter
+@Table(name = "authorization_consent")
 public class AuthorizationConsentId implements Serializable {
     @Column(name="registered_client_id", length = 100, nullable = false)
     private String registeredClientId;
@@ -477,15 +481,36 @@ C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\
 package mango.security.authorizationServer.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
+import java.time.Instant;
+
+@Setter
+@Getter
 @Entity
 @Table(name = "oauth2_authorization_consent")
 public class OAuth2AuthorizationConsentEntity {
+
     @EmbeddedId
     private AuthorizationConsentId id;
 
     @Column(name = "authorities", nullable = false, length = 1000)
     private String authorities;
+
+    // 추가 필드의 getter/setter
+    // 추가 필드들
+    @Column(name = "refresh_token_value")
+    private String refreshTokenValue;
+
+    @Column(name = "client_id")
+    private String clientId;
+
+    @Column(name = "refresh_token_issued_at")
+    private Instant refreshTokenIssuedAt;
+
+    @Column(name = "refresh_token_expires_at")
+    private Instant refreshTokenExpiresAt;
 
     public OAuth2AuthorizationConsentEntity() {}
 
@@ -494,21 +519,43 @@ public class OAuth2AuthorizationConsentEntity {
         this.authorities = authorities;
     }
 
-    public AuthorizationConsentId getId() {
-        return id;
-    }
+}
 
-    public void setId(AuthorizationConsentId id) {
-        this.id = id;
-    }
 
-    public String getAuthorities() {
-        return authorities;
-    }
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\OAuth2AuthorizationEntity.java
+package mango.security.authorizationServer.entity;
 
-    public void setAuthorities(String authorities) {
-        this.authorities = authorities;
-    }
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@Entity
+@Getter @Setter
+@Table(name = "oauth2_authorization")
+public class OAuth2AuthorizationEntity {
+
+    @Id
+    private String id;
+
+    @Column(name = "client_id", nullable = false)
+    private String clientId;
+
+    @Column(name = "principal_name", nullable = false)
+    private String principalName;
+
+    @Column(name = "refresh_token_value", columnDefinition = "text")
+    private String refreshTokenValue;
+
+    @Column(name = "refresh_token_issued_at")
+    private Instant refreshTokenIssuedAt;
+
+    @Column(name = "refresh_token_expires_at")
+    private Instant refreshTokenExpiresAt;
 }
 
 
@@ -712,6 +759,19 @@ public interface AuthorizationConsentRepository
         extends JpaRepository<OAuth2AuthorizationConsentEntity, AuthorizationConsentId> {
 
     Optional<OAuth2AuthorizationConsentEntity> findById(AuthorizationConsentId id);
+    Optional<OAuth2AuthorizationConsentEntity> findByRefreshTokenValue(String refreshTokenValue);
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\OAuth2AuthorizationRepository.java
+package mango.security.authorizationServer.repository;
+
+import mango.security.authorizationServer.entity.OAuth2AuthorizationEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
+
+public interface OAuth2AuthorizationRepository extends JpaRepository<OAuth2AuthorizationEntity, String> {
+    Optional<OAuth2AuthorizationEntity> findByRefreshTokenValue(String refreshTokenValue);
 }
 
 
@@ -886,6 +946,83 @@ public class ConsentService {
                 "requestedScope", dto.scope(),
                 "redirectedUri", dto.redirect_uri()
         );
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\RefreshTokenService.java
+package mango.security.authorizationServer.service;
+
+import mango.security.authorizationServer.dto.StoredTokenDto;
+
+public interface RefreshTokenService {
+    StoredTokenDto getRefreshToken(String refreshTokenValue);
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\RefreshTokenServiceImpl.java
+package mango.security.authorizationServer.service;
+
+import mango.security.authorizationServer.dto.StoredTokenDto;
+import mango.security.authorizationServer.entity.OAuth2AuthorizationConsentEntity;
+import mango.security.authorizationServer.repository.AuthorizationConsentRepository;
+
+import java.util.Optional;
+
+public class RefreshTokenServiceImpl implements  RefreshTokenService{
+    private final TokenRedisService tokenRedisService;
+    private final AuthorizationConsentRepository authorizationConsentRepository;
+
+    public RefreshTokenServiceImpl(TokenRedisService tokenRedisService, AuthorizationConsentRepository authorizationConsentRepository) {
+        this.tokenRedisService = tokenRedisService;
+        this.authorizationConsentRepository = authorizationConsentRepository;
+    }
+
+    @Override
+    public StoredTokenDto getRefreshToken(String refreshTokenValue) {
+        try{
+            return tokenRedisService.getToken(refreshTokenValue, "refresh_token");
+        } catch (Exception e){
+            Optional<OAuth2AuthorizationConsentEntity> tmp = authorizationConsentRepository.findByRefreshTokenValue(refreshTokenValue);
+            if(tmp.isEmpty()){
+                return null;
+            }
+            OAuth2AuthorizationConsentEntity entity = tmp.get();
+            StoredTokenDto storedTokenDto = converEntityToStoredToken(entity);
+            tokenRedisService.saveToken(storedTokenDto);
+            return storedTokenDto;
+        }
+    }
+
+    private StoredTokenDto converEntityToStoredToken(OAuth2AuthorizationConsentEntity entity) {
+        return new StoredTokenDto(
+                entity.getRefreshTokenValue(),
+                entity.getId().getPrincipalName(),
+                entity.getClientId(),
+                "refresh",
+                entity.getRefreshTokenIssuedAt(),
+                entity.getRefreshTokenExpiresAt()
+        );
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\TokenPersistenceService.java
+package mango.security.authorizationServer.service;
+
+import mango.security.authorizationServer.dto.StoredTokenDto;
+import mango.security.authorizationServer.dto.TokenPairDto;
+
+public class TokenPersistenceService {
+    private final TokenRedisService tokenRedisService;
+
+    public TokenPersistenceService(TokenRedisService tokenRedisService) {
+        this.tokenRedisService = tokenRedisService;
+    }
+
+    public void persisTokenPair(StoredTokenDto accessToken, StoredTokenDto refreshToken) {
+        TokenPairDto pair = new TokenPairDto(accessToken, refreshToken);
+        tokenRedisService.saveTokenPair(pair);
     }
 }
 

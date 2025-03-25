@@ -2,11 +2,15 @@ package mango.security.authorizationServer.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+import jakarta.persistence.Table;
+import lombok.Getter;
 
 import java.io.Serializable;
 import java.util.Objects;
 
 @Embeddable
+@Getter
+@Table(name = "authorization_consent")
 public class AuthorizationConsentId implements Serializable {
     @Column(name="registered_client_id", length = 100, nullable = false)
     private String registeredClientId;

@@ -6,6 +6,7 @@ import lombok.*;
 import java.time.Instant;
 
 @Entity
+@Getter @Setter
 @Table(name = "oauth2_registered_client")
 public class RegisteredClientEntity {
 
