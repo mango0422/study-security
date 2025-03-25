@@ -1,4 +1,5 @@
-C:\Users\tom99\study-security\frontend\src\api\core\auth-server.ts
+
+C:\Users\tom99\workspace\study-security\frontend\src\api\core\auth-server.ts
 // src/api/core/auth-server.ts
 import { createAxiosInstance } from './base'
 
@@ -7,26 +8,117 @@ const authServer = createAxiosInstance('http://localhost:9000')
 export default authServer
 
 
-C:\Users\tom99\study-security\frontend\src\api\core\backend.ts
+C:\Users\tom99\workspace\study-security\frontend\src\api\core\backend.ts
 // src/api/core/backend.ts
-import { createAxiosInstance } from './base'
+import axios from 'axios' // axios 직접 사용으로 변경 (createAxiosInstance 불필요 시)
 import Cookies from 'js-cookie'
+import { oauthAuth } from '../auth-api' // oauthAuth 임포트
 
-const backend = createAxiosInstance('http://localhost:8080/api')
-
-// 토큰 자동 부착
-backend.interceptors.request.use(config => {
-  const token = Cookies.get('accessToken')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
+const backend = axios.create({
+  baseURL: 'http://localhost:8080/api',
+  timeout: 10000,
+  withCredentials: true, // 쿠키 전송에 필요할 수 있음
+  headers: {
+    'Content-Type': 'application/json',
+  },
 })
+
+// Request 인터셉터: 요청 전에 Access Token 부착
+backend.interceptors.request.use(
+  config => {
+    const token = Cookies.get('accessToken')
+    if (token && !config.headers.Authorization) {
+      // Authorization 헤더가 없을 때만 추가
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  error => {
+    return Promise.reject(error)
+  }
+)
+
+// Response 인터셉터: 401 에러 시 토큰 재발급 및 재시도
+let isRefreshing = false // 재발급 중복 방지 플래그
+let failedQueue: { resolve: (value: unknown) => void; reject: (reason?: any) => void; config: any } // 실패한 요청 큐
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.config.headers['Authorization'] = 'Bearer ' + token
+      prom.resolve(backend(prom.config)) // axios 인스턴스로 재요청
+    }
+  })
+  failedQueue
+}
+
+backend.interceptors.response.use(
+  response => response, // 성공 응답은 그대로 반환
+  async error => {
+    const originalRequest = error.config
+
+    // 401 에러이고, 재시도 요청이 아니며, refresh token이 있을 경우
+    if (error.response?.status === 401 && !originalRequest._retry && Cookies.get('refreshToken')) {
+      if (isRefreshing) {
+        // 이미 재발급 중이면 큐에 추가
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject, config: originalRequest })
+        })
+      }
+
+      originalRequest._retry = true // 재시도 플래그 설정
+      isRefreshing = true
+
+      const refreshTokenValue = Cookies.get('refreshToken')
+
+      try {
+        if (!refreshTokenValue) throw new Error('No refresh token found')
+
+        const { access_token: newAccessToken, refresh_token: newRefreshToken } =
+          await oauthAuth.refreshToken(refreshTokenValue)
+
+        // 새 Access Token 쿠키 저장 (만료 시간은 서버 응답에 따라 설정해야 하나, 여기서는 간단히 설정)
+        // 실제로는 expires_in 값을 받아 계산해야 함
+        Cookies.set('accessToken', newAccessToken, { secure: true, sameSite: 'lax' })
+        if (newRefreshToken) {
+          // 새 Refresh Token이 발급된 경우 업데이트
+          Cookies.set('refreshToken', newRefreshToken, {
+            expires: 7,
+            secure: true,
+            sameSite: 'strict',
+          })
+        }
+
+        console.log('Token refreshed successfully.')
+        backend.defaults.headers.common['Authorization'] = 'Bearer ' + newAccessToken // axios 인스턴스 기본 헤더 업데이트
+        originalRequest.headers['Authorization'] = 'Bearer ' + newAccessToken // 현재 요청 헤더 업데이트
+
+        processQueue(null, newAccessToken) // 큐에 있던 요청들 처리
+        return backend(originalRequest) // 원래 요청 재시도
+      } catch (refreshError) {
+        console.error('Unable to refresh token:', refreshError)
+        // Refresh 실패 시 로그아웃 처리
+        Cookies.remove('accessToken')
+        Cookies.remove('refreshToken')
+        processQueue(refreshError, null) // 큐에 있던 요청들 실패 처리
+        // 로그인 페이지로 리디렉션 또는 에러 상태 관리
+        // window.location.href = '/'; // 예시: 랜딩 페이지로 강제 이동
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
+    }
+
+    return Promise.reject(error) // 그 외 에러는 그대로 반환
+  }
+)
 
 export default backend
 
 
-C:\Users\tom99\study-security\frontend\src\api\core\base.ts
+C:\Users\tom99\workspace\study-security\frontend\src\api\core\base.ts
 // src/api/core/base.ts
 import axios, { AxiosInstance } from 'axios'
 
@@ -42,7 +134,7 @@ export const createAxiosInstance = (baseURL: string): AxiosInstance => {
 }
 
 
-C:\Users\tom99\study-security\frontend\src\api\core\http.ts
+C:\Users\tom99\workspace\study-security\frontend\src\api\core\http.ts
 // src/api/core/http.ts
 import { AxiosInstance, Method, AxiosRequestConfig } from 'axios'
 
@@ -60,7 +152,7 @@ export const createHttpClient = (instance: AxiosInstance) => ({
 })
 
 
-C:\Users\tom99\study-security\frontend\src\api\core\index.ts
+C:\Users\tom99\workspace\study-security\frontend\src\api\core\index.ts
 // src/api/core/index.ts
 export * from './http'
 export { default as authServer } from './auth-server'
@@ -68,58 +160,93 @@ export { default as backend } from './backend'
 export * from './base'
 
 
-C:\Users\tom99\study-security\frontend\src\api\auth-api.ts
+C:\Users\tom99\workspace\study-security\frontend\src\api\auth-api.ts
 // src/api/auth-api.ts
-import { createHttpClient, backend, authServer } from './core'
+import { createHttpClient, backend /*, authServer */ } from './core'
+import Cookies from 'js-cookie'
 
+// Axios 인스턴스 생성 (기존 코드 활용)
 const backendHttp = createHttpClient(backend)
-const oauthHttp = createHttpClient(authServer)
+// authServer 인스턴스는 /oauth2/token 엔드포인트 호출 시 Content-Type이 다르므로
+// OauthCallback에서 직접 axios를 사용하거나 별도 설정된 인스턴스를 사용합니다.
+// const oauthHttp = createHttpClient(authServer)
 
 interface AuthResponse {
+  // JPA/InMemory용 인터페이스 (OAuth에서는 직접 사용 안 함)
   accessToken: string
   refreshToken: string
 }
 
-// JPA 기반 인증 API 모듈
+// JPA 기반 인증 API 모듈 (OAuth와 별개)
 export const jpaAuth = {
-  login: (username: string, password: string) =>
-    backendHttp.post<AuthResponse>({ url: '/auth/jpa/login', data: { username, password } }),
-  // 현재 백엔드에 회원가입 API가 없다면 주석 처리하거나 추후 구현
-  // signup: (username: string, password: string) =>
-  //   backendHttp.post({ url: '/auth/jpa/signup', data: { username, password } }),
-  logout: () => backendHttp.delete({ url: '/auth/jpa/logout' }),
-  // 체크 엔드포인트가 있다면 추가 가능
-  // check: () => backendHttp.get({ url: '/auth/jpa/check' }),
+  login: (email: string, password: string) =>
+    backendHttp.post<AuthResponse>({ url: '/auth/jpa/login', data: { email, password } }),
+  // ... (signup, logout 등)
 }
 
-// InMemory 기반 인증 API 모듈
+// InMemory 기반 인증 API 모듈 (OAuth와 별개)
 export const inMemoryAuth = {
-  login: (username: string, password: string) =>
-    backendHttp.post<AuthResponse>({ url: '/auth/inmemory/login', data: { username, password } }),
-  // signup: (username: string, password: string) =>
-  //   backendHttp.post({ url: '/auth/inmemory/signup', data: { username, password } }),
-  logout: () => backendHttp.delete({ url: '/auth/inmemory/logout' }),
-  // check: () => backendHttp.get({ url: '/auth/inmemory/check' }),
+  login: (email: string, password: string) =>
+    backendHttp.post<AuthResponse>({ url: '/auth/inmemory/login', data: { email, password } }),
+  // ... (signup, logout 등)
 }
 
-// OAuth 관련은 기존대로
+// OAuth 관련 API
 export const oauthAuth = {
+  // 로그인 시작: Authorization Server로 리디렉션
   login: () => {
-    window.location.href =
-      'http://localhost:9000/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:5173/oauth/callback&response_type=code'
+    // !! 중요: client_id와 redirect_uri를 서버 설정과 일치시킵니다.
+    const clientId = 'oidc-client'
+    const redirectUri = 'http://localhost:5173/oauth/callback'
+    const authorizeUrl = `http://localhost:9000/oauth2/authorize?response_type=code&client_id=${clientId}&scope=openid%20profile%20message.read&redirect_uri=${redirectUri}`
+    // TODO: PKCE 파라미터(code_challenge, code_challenge_method) 추가 권장
+
+    window.location.href = authorizeUrl
   },
+  // 회원가입도 동일한 OAuth 흐름을 따릅니다 (Auth Server에서 처리).
   signup: () => {
-    window.location.href =
-      'http://localhost:9000/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:5173/oauth/callback&response_type=code'
+    oauthAuth.login()
   },
-  logout: () =>
-    oauthHttp.post({
-      url: '/api/auth/oauth/logout',
-    }),
+  // 로그아웃: 클라이언트 측 토큰 제거 및 상태 초기화
+  logout: async () => {
+    // 실제로는 Authorization Server의 로그아웃 엔드포인트 호출/리디렉션 필요할 수 있음
+    // 예: window.location.href = 'http://localhost:9000/logout?id_token_hint=...&post_logout_redirect_uri=...'
+    Cookies.remove('accessToken')
+    Cookies.remove('refreshToken')
+    // TODO: 서버 세션 무효화 또는 토큰 폐기 API 호출 (필요시)
+    console.log('OAuth logout initiated (client-side token removal)')
+    return Promise.resolve()
+  },
+  // 토큰 새로고침 함수 (backend 인터셉터 내부에서 사용됨)
+  refreshToken: async (
+    refreshTokenValue: string
+  ): Promise<{ access_token: string; refresh_token?: string }> => {
+    const clientId = 'oidc-client'
+    const clientSecret = 'secret' // 실제 앱에서는 노출되면 안됨!
+
+    const params = new URLSearchParams()
+    params.append('grant_type', 'refresh_token')
+    params.append('refresh_token', refreshTokenValue)
+
+    const response = await fetch('http://localhost:9000/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: 'Basic ' + btoa(`${clientId}:${clientSecret}`), // Basic Auth
+      },
+      body: params,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Token refresh failed: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
 }
 
 
-C:\Users\tom99\study-security\frontend\src\components\Nav.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\components\Nav.tsx
 // src/components/Nav.tsx
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
@@ -195,7 +322,7 @@ export default function Nav() {
 }
 
 
-C:\Users\tom99\study-security\frontend\src\components\NeonTwinGlowBox.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\components\NeonTwinGlowBox.tsx
 // import React from 'react'
 
 // export default function NeonTwinGlowBox() {
@@ -274,67 +401,153 @@ export default function NeonTwinGlowBox() {
   )
 }
 
-C:\Users\tom99\study-security\frontend\src\components\ProtectedRoute.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\components\ProtectedRoute.tsx
+// src/components/ProtectedRoute.tsx
 import { Navigate, Outlet } from 'react-router-dom'
-import { useAuth } from '../context/auth'
+import { useAuthContext } from '../context/auth' // useAuthContext 사용
 
 export default function ProtectedRoute() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated } = useAuthContext() // AuthContext에서 상태 가져오기
+
+  // console.log('ProtectedRoute check:', isAuthenticated); // 디버깅용
 
   return isAuthenticated ? <Outlet /> : <Navigate to="/" replace />
 }
 
 
-C:\Users\tom99\study-security\frontend\src\context\auth.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\context\auth.tsx
 // src/context/auth.tsx
-import { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import Cookies from 'js-cookie'
 import { useLoginType } from '../hooks/useLoginType'
 import { jpaAuth, inMemoryAuth, oauthAuth } from '../api/auth-api'
+import backend from '../api/core/backend' // backend 인스턴스 직접 임포트
 
 interface AuthContextType {
   isAuthenticated: boolean
-  login: (username: string, password: string) => Promise<void>
+  checkAuth: () => Promise<void> // 인증 상태 확인 함수 추가
+  login: (email: string, password: string) => Promise<void> // JPA/InMemory 용
+  signup: (email: string, password: string) => Promise<void> // JPA/InMemory 용
   logout: () => Promise<void>
+  isLoading: boolean // 로딩 상태 추가
 }
 
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
+  checkAuth: async () => {},
   login: async () => {},
+  signup: async () => {},
   logout: async () => {},
+  isLoading: true, // 초기 로딩 상태 true
 })
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const loginType = useLoginType()
-  const authApi = loginType === 'JPA' ? jpaAuth : loginType === 'OAuth' ? oauthAuth : inMemoryAuth
+  const [isLoading, setIsLoading] = useState(true) // 로딩 상태
+  const loginType = useLoginType() // 현재 경로 기반 로그인 타입
 
-  // 인증 상태 확인 (추가 check 엔드포인트가 있다면 사용)
+  // 현재 타입에 맞는 API 모듈 선택 (JPA/InMemory는 예시)
+  const getAuthApi = useCallback(
+    () => {
+      // 현재 프로젝트에서는 OAuth만 사용하므로 oauthAuth만 고려
+      // 실제로는 loginType에 따라 분기
+      return oauthAuth
+      // if (loginType === 'JPA') return jpaAuth;
+      // if (loginType === 'OAuth') return oauthAuth;
+      // return inMemoryAuth;
+    },
+    [
+      /* loginType */
+    ]
+  ) // loginType이 변경될 때마다 API 객체 다시 가져옴
+
+  // 인증 상태 확인 로직
+  const checkAuth = useCallback(async () => {
+    setIsLoading(true)
+    const token = Cookies.get('accessToken')
+    if (token) {
+      try {
+        // 보호된 API 호출하여 토큰 유효성 검증 (예: /api/messages 또는 /userinfo)
+        await backend.get('/messages') // backend 인스턴스 사용
+        setIsAuthenticated(true)
+        console.log('User is authenticated via token check.')
+      } catch (error) {
+        console.error('Token validation failed or token expired:', error)
+        // 토큰 만료 또는 무효 시 토큰 제거 (Refresh 로직은 인터셉터에서 처리)
+        // Cookies.remove('accessToken'); // 인터셉터에서 실패 시 제거하므로 여기선 불필요할 수 있음
+        // Cookies.remove('refreshToken');
+        setIsAuthenticated(false)
+      }
+    } else {
+      setIsAuthenticated(false)
+    }
+    setIsLoading(false)
+  }) // 종속성 없음
+
+  // 앱 로드 시 인증 상태 확인
   useEffect(() => {
-    // 예: authApi.check && authApi.check().then(() => setIsAuthenticated(true)).catch(() => setIsAuthenticated(false))
-  }, [authApi])
+    checkAuth()
+  }, [checkAuth])
 
-  const login = async (username: string, password: string) => {
-    await authApi.login(username, password)
-    // 서버에서 쿠키(혹은 localStorage 등)로 토큰 관리 시 성공 시 상태 업데이트
-    setIsAuthenticated(true)
+  // JPA/InMemory 로그인 (OAuth와는 별개)
+  const login = async (email: string, password: string) => {
+    // const api = getAuthApi();
+    // if (api === oauthAuth) {
+    //   console.warn("OAuth login is initiated via redirect, not this function.");
+    //   return;
+    // }
+    // await api.login(email, password); // JPA 또는 InMemory API 호출
+    // await checkAuth(); // 로그인 성공 후 상태 재확인
+    console.warn('JPA/InMemory login not implemented in this context')
   }
 
+  // JPA/InMemory 회원가입 (OAuth와는 별개)
+  const signup = async (email: string, password: string) => {
+    // const api = getAuthApi();
+    // if (api === oauthAuth) {
+    //    console.warn("OAuth signup is handled by the Authorization Server.");
+    //    return;
+    // }
+    // await api.signup(email, password); // JPA 또는 InMemory API 호출
+    // await checkAuth(); // 가입 성공 후 상태 재확인 (자동 로그인 시)
+    console.warn('JPA/InMemory signup not implemented in this context')
+  }
+
+  // 로그아웃
   const logout = async () => {
-    await authApi.logout()
-    setIsAuthenticated(false)
+    const api = getAuthApi()
+    try {
+      await api.logout() // API 호출 (클라이언트 측 토큰 제거 포함)
+    } catch (error) {
+      console.error('Logout API call failed:', error)
+      // API 호출 실패해도 클라이언트 측 토큰은 제거
+      Cookies.remove('accessToken')
+      Cookies.remove('refreshToken')
+    } finally {
+      setIsAuthenticated(false) // 상태 업데이트
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, checkAuth, login, signup, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
+// useAuthContext 훅 이름 변경 방지 위해 그대로 둠
 export const useAuthContext = () => useContext(AuthContext)
 
+// useAuth 훅은 API 객체 직접 반환하므로 이름 유지
+export const useAuth = () => {
+  const loginType = useLoginType()
+  if (loginType === 'JPA') return jpaAuth
+  if (loginType === 'OAuth') return oauthAuth
+  return inMemoryAuth
+}
 
-C:\Users\tom99\study-security\frontend\src\hooks\useAuth.ts
+
+C:\Users\tom99\workspace\study-security\frontend\src\hooks\useAuth.ts
 // src/hooks/useAuth.ts
 import { useLoginType } from './useLoginType'
 import { jpaAuth, inMemoryAuth, oauthAuth } from '../api/auth-api'
@@ -347,7 +560,7 @@ export const useAuth = () => {
 }
 
 
-C:\Users\tom99\study-security\frontend\src\hooks\useLoginType.ts
+C:\Users\tom99\workspace\study-security\frontend\src\hooks\useLoginType.ts
 // src/hooks/useLoginType.ts
 import { useLocation } from 'react-router-dom'
 
@@ -359,7 +572,7 @@ export const useLoginType = (): 'JPA' | 'OAuth' | 'InMemory' => {
 }
 
 
-C:\Users\tom99\study-security\frontend\src\pages\Home.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\pages\Home.tsx
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useLoginType } from '../hooks/useLoginType'
@@ -392,29 +605,33 @@ export default function Home() {
 }
 
 
-C:\Users\tom99\study-security\frontend\src\pages\index.ts
+C:\Users\tom99\workspace\study-security\frontend\src\pages\index.ts
 export { default as Home } from './Home.tsx'
 export { default as Login } from './Login.tsx'
 export { default as Signup } from './Signup.tsx'
 export { default as OauthCallback } from './OauthCallback.tsx'
+export { default as LandingPage } from './LandingPage.tsx'
 
 
-C:\Users\tom99\study-security\frontend\src\pages\LandingPage.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\pages\LandingPage.tsx
 // src/pages/LandingPage.tsx
 import { useNavigate } from 'react-router-dom'
+import { oauthAuth } from '../api/auth-api' // oauthAuth 임포트
 
 export default function LandingPage() {
   const navigate = useNavigate()
 
-  const goToLogin = (mode: 'inmemory' | 'jpa' | 'oauth') => {
-    // 각각의 로그인 페이지 경로로 이동합니다.
+  const goToLogin = (mode: 'inmemory' | 'jpa') => {
+    // oauth 제외
     if (mode === 'inmemory') {
       navigate('/inmemory/login')
     } else if (mode === 'jpa') {
       navigate('/jpa/login')
-    } else if (mode === 'oauth') {
-      navigate('/oauth/login')
     }
+  }
+
+  const handleOAuthLogin = () => {
+    oauthAuth.login() // 바로 리디렉션 시작
   }
 
   return (
@@ -422,6 +639,7 @@ export default function LandingPage() {
       <h1 className="mb-6 text-4xl font-bold">Welcome to the Auth Demo</h1>
       <p className="mb-8 text-lg">아래 버튼을 눌러 원하는 인증 방식을 선택하세요.</p>
       <div className="flex flex-col space-y-4">
+        {/* ... InMemory, JPA 버튼은 그대로 ... */}
         <button
           onClick={() => goToLogin('inmemory')}
           className="rounded bg-blue-500 px-6 py-3 text-white hover:bg-blue-600"
@@ -434,8 +652,9 @@ export default function LandingPage() {
         >
           JPA (Redis) 로그인
         </button>
+        {/* OAuth 로그인 버튼 수정 */}
         <button
-          onClick={() => goToLogin('oauth')}
+          onClick={handleOAuthLogin} // oauthAuth.login 호출
           className="rounded bg-purple-500 px-6 py-3 text-white hover:bg-purple-600"
         >
           OAuth 로그인
@@ -446,7 +665,7 @@ export default function LandingPage() {
 }
 
 
-C:\Users\tom99\study-security\frontend\src\pages\Login.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\pages\Login.tsx
 // src/pages/Login.tsx
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
@@ -503,10 +722,11 @@ export default function Login() {
 }
 
 
-C:\Users\tom99\study-security\frontend\src\pages\OauthCallback.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\pages\OauthCallback.tsx
+// src/pages/OauthCallback.tsx
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import Cookies from 'js-cookie'
 
 export default function OauthCallback() {
   const navigate = useNavigate()
@@ -515,54 +735,101 @@ export default function OauthCallback() {
     const exchangeCodeForToken = async () => {
       const code = new URLSearchParams(window.location.search).get('code')
       if (!code) {
-        console.error('No code in callback URL')
+        console.error('No authorization code found in callback URL.')
+        navigate('/') // 오류 발생 시 랜딩 페이지로 이동
         return
       }
 
+      const clientId = 'oidc-client' // 서버와 일치
+      const clientSecret = 'secret' // 서버와 일치 (주의: 실제 앱에서는 노출 금지!)
+      const redirectUri = 'http://localhost:5173/oauth/callback' // 서버와 일치
+
+      // URLSearchParams를 사용하여 x-www-form-urlencoded 형식 데이터 준비
+      const params = new URLSearchParams()
+      params.append('grant_type', 'authorization_code')
+      params.append('code', code)
+      params.append('redirect_uri', redirectUri)
+      // PKCE 사용 시 code_verifier 파라미터 추가 필요
+      // params.append('code_verifier', 'YOUR_CODE_VERIFIER_STORED_IN_SESSION_OR_LOCALSTORAGE');
+
       try {
-        const response = await axios.post('http://localhost:9000/oauth2/token', {
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: 'http://localhost:5173/oauth/callback',
-          client_id: 'YOUR_CLIENT_ID',
-          client_secret: 'YOUR_CLIENT_SECRET', // 필요 시
+        const response = await fetch('http://localhost:9000/oauth2/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: 'Basic ' + btoa(`${clientId}:${clientSecret}`), // Basic Authentication
+          },
+          body: params,
         })
 
-        const { access_token, refresh_token } = response.data
-        localStorage.setItem('accessToken', access_token)
-        localStorage.setItem('refreshToken', refresh_token)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({})) // 오류 응답 파싱 시도
+          console.error('Token exchange failed:', response.status, response.statusText, errorData)
+          throw new Error(`Token exchange failed: ${response.status}`)
+        }
 
-        navigate('/home')
+        const tokens = await response.json()
+        const { access_token, refresh_token, expires_in } = tokens
+
+        if (!access_token) {
+          throw new Error('Access token not received')
+        }
+
+        // 쿠키에 토큰 저장 (js-cookie 사용)
+        // 만료 시간 설정 (expires_in은 초 단위)
+        const expiryDate = new Date(new Date().getTime() + expires_in * 1000)
+        Cookies.set('accessToken', access_token, {
+          expires: expiryDate,
+          secure: true,
+          sameSite: 'lax',
+        }) // HTTPS에서만 전송, Lax 권장
+        if (refresh_token) {
+          // Refresh token은 더 긴 만료 시간 설정 가능 (예: 7일)
+          Cookies.set('refreshToken', refresh_token, {
+            expires: 7,
+            secure: true,
+            sameSite: 'strict',
+          }) // Strict 권장
+        }
+
+        console.log('Tokens obtained and stored in cookies.')
+        navigate('/home') // 성공 시 홈으로 이동
       } catch (err) {
-        console.error('Token exchange failed', err)
+        console.error('Error during token exchange:', err)
+        // 사용자에게 오류 메시지 표시 또는 오류 페이지로 리디렉션
+        navigate('/') // 오류 시 랜딩 페이지로 이동
       }
     }
 
     exchangeCodeForToken()
   }, [navigate])
 
-  return <div>OAuth 처리 중입니다...</div>
+  return (
+    <div className="flex h-screen items-center justify-center">Processing OAuth callback...</div>
+  )
 }
 
 
-C:\Users\tom99\study-security\frontend\src\pages\Signup.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\pages\Signup.tsx
+// src/pages/Signup.tsx
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
+import { useAuthContext } from '../context/auth'
 import { useLoginType } from '../hooks/useLoginType'
 
 export default function Signup() {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const navigate = useNavigate()
-  const auth = useAuth()
+  const { signup } = useAuthContext()
   const loginType = useLoginType()
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await auth.signup(username, password)
-      navigate('/')
+      await signup(email, password)
+      // 가입 후 랜딩 페이지(혹은 홈)으로 이동
+      navigate('/home')
     } catch (err) {
       console.error('Signup failed', err)
     }
@@ -574,10 +841,10 @@ export default function Signup() {
         <h1 className="mb-4 text-2xl font-bold">Sign Up ({loginType})</h1>
         <input
           className="input mb-3"
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={e => setUsername(e.target.value)}
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
         />
         <input
           className="input mb-4"
@@ -601,40 +868,63 @@ export default function Signup() {
 }
 
 
-C:\Users\tom99\study-security\frontend\src\App.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\App.tsx
 // src/App.tsx
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Nav from './components/Nav'
-import { AuthProvider } from './context/auth'
+import { AuthProvider, useAuthContext } from './context/auth'
 import { Home, Login, Signup, OauthCallback, LandingPage } from './pages'
+import ProtectedRoute from './components/ProtectedRoute' // ProtectedRoute 임포트
+
+function AppContent() {
+  const { isLoading } = useAuthContext()
+
+  if (isLoading) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div> // 로딩 상태 표시
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <Nav />
+      <main className="mt-16 flex-grow">
+        <Routes>
+          {/* 기본 랜딩 페이지 */}
+          <Route path="/" element={<LandingPage />} />
+
+          {/* JPA/InMemory 로그인/회원가입 경로 (OAuth와 별개) */}
+          <Route path="/inmemory/login" element={<Login />} />
+          <Route path="/jpa/login" element={<Login />} />
+          {/* 공용 회원가입 경로는 유지 */}
+          <Route path="/signup" element={<Signup />} />
+
+          {/* 보호된 경로 */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/home" element={<Home />} />
+            {/* 다른 보호된 경로 추가 가능 */}
+          </Route>
+
+          {/* OAuth 콜백 경로 */}
+          <Route path="/oauth/callback" element={<OauthCallback />} />
+
+          {/* 다른 경로들... */}
+        </Routes>
+      </main>
+    </div>
+  )
+}
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div className="flex min-h-screen flex-col">
-          <Nav />
-          <main className="mt-16 flex-grow">
-            <Routes>
-              {/* 기본 랜딩 페이지 */}
-              <Route path="/" element={<LandingPage />} />
-              {/* 각 인증 방식별 로그인 경로 */}
-              <Route path="/inmemory/login" element={<Login />} />
-              <Route path="/jpa/login" element={<Login />} />
-              <Route path="/oauth/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
-              <Route path="/home" element={<Home />} />
-              <Route path="/oauth/callback" element={<OauthCallback />} />
-            </Routes>
-          </main>
-        </div>
+        <AppContent />
       </AuthProvider>
     </BrowserRouter>
   )
 }
 
 
-C:\Users\tom99\study-security\frontend\src\main.tsx
+C:\Users\tom99\workspace\study-security\frontend\src\main.tsx
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -647,7 +937,6 @@ createRoot(document.getElementById('root')!).render(
 )
 
 
-C:\Users\tom99\study-security\frontend\src\vite-env.d.ts
+C:\Users\tom99\workspace\study-security\frontend\src\vite-env.d.ts
 /// <reference types="vite/client" />
-
 
