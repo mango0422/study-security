@@ -283,6 +283,84 @@ public class ConsentController {
 }
 
 
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\controller\TokenDebugController.java
+package mango.security.authorizationServer.controller;
+
+import mango.security.authorizationServer.dto.BaseResponseDto;
+import mango.security.authorizationServer.dto.StoredTokenDto;
+import mango.security.authorizationServer.dto.TokenPairDto;
+import mango.security.authorizationServer.service.TokenRedisService;
+import mango.security.authorizationServer.type.ApiResponseType;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/debug/token")
+public class TokenDebugController {
+
+    private final TokenRedisService tokenRedisService;
+
+    public TokenDebugController(TokenRedisService tokenRedisService) {
+        this.tokenRedisService = tokenRedisService;
+    }
+
+    @PostMapping("/save")
+    public BaseResponseDto<Object> saveToken(@RequestParam("type") String type) {
+        Instant now = Instant.now();
+        StoredTokenDto token = new StoredTokenDto(
+                UUID.randomUUID().toString(),
+                "user@example.com",
+                "mango-client",
+                type,
+                now,
+                now.plusSeconds(type.equals("access") ? 600 : 86400)
+        );
+        tokenRedisService.saveToken(token);
+        return BaseResponseDto.of(ApiResponseType.SUCCESS, token);
+    }
+
+    @PostMapping("/save-pair")
+    public BaseResponseDto<Object> saveTokenPair() {
+        Instant now = Instant.now();
+        String access = UUID.randomUUID().toString();
+        String refresh = UUID.randomUUID().toString();
+
+        StoredTokenDto accessToken = new StoredTokenDto(
+                access, "user@example.com", "mango-client", "access", now, now.plusSeconds(600));
+        StoredTokenDto refreshToken = new StoredTokenDto(
+                refresh, "user@example.com", "mango-client", "refresh", now, now.plusSeconds(86400));
+
+        tokenRedisService.saveTokenPair(new TokenPairDto(accessToken, refreshToken));
+
+        return BaseResponseDto.of(ApiResponseType.SUCCESS, Map.of(
+                "accessToken", access,
+                "refreshToken", refresh
+        ));
+    }
+
+    @GetMapping("/get")
+    public BaseResponseDto<Object> getToken(@RequestParam("type") String type, @RequestParam("value") String value) {
+        var token = tokenRedisService.getToken(value, type);
+        return BaseResponseDto.of(ApiResponseType.SUCCESS, token);
+    }
+
+    @DeleteMapping("/delete")
+    public BaseResponseDto<Object> deleteToken(@RequestParam("type") String type, @RequestParam("value") String value) {
+        tokenRedisService.deleteToken(value, type);
+        return BaseResponseDto.of(ApiResponseType.SUCCESS, "삭제됨");
+    }
+
+    @DeleteMapping("/delete-pair")
+    public BaseResponseDto<Object> deletePair(@RequestParam("access") String access, @RequestParam("refresh") String refresh) {
+        tokenRedisService.deleteTokenPair(access, refresh);
+        return BaseResponseDto.of(ApiResponseType.SUCCESS, "쌍 삭제 완료");
+    }
+}
+
+
 C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\BaseResponseDto.java
 package mango.security.authorizationServer.dto;
 
@@ -317,6 +395,33 @@ public record ConsentRequestDto(
         String scope,
         String redirect_uri
 ) {}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\StoredTokenDto.java
+package mango.security.authorizationServer.dto;
+
+import java.io.Serializable;
+import java.time.Instant;
+
+public record StoredTokenDto(
+        String tokenValue,
+        String principalName,
+        String clientId,
+        String tokenType, // "access" or "refresh"
+        Instant issuedAt,
+        Instant expiresAt
+) implements Serializable {}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\TokenPairDto.java
+package mango.security.authorizationServer.dto;
+
+import java.io.Serializable;
+
+public record TokenPairDto(
+        StoredTokenDto accessToken,
+        StoredTokenDto refreshToken
+) implements Serializable {}
 
 
 C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\AuthorizationConsentId.java
@@ -781,6 +886,90 @@ public class ConsentService {
                 "requestedScope", dto.scope(),
                 "redirectedUri", dto.redirect_uri()
         );
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\TokenRedisService.java
+package mango.security.authorizationServer.service;
+
+import mango.security.authorizationServer.dto.StoredTokenDto;
+import mango.security.authorizationServer.dto.TokenPairDto;
+
+public interface TokenRedisService {
+    void saveToken(StoredTokenDto token);
+    StoredTokenDto getToken(String tokenValue, String tokenType);
+    void deleteToken(String tokenValue, String tokenType);
+
+    void saveTokenPair(TokenPairDto pair);
+    void deleteTokenPair(String accessTokenValue, String refreshTokenValue);
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\TokenRedisServiceImpl.java
+package mango.security.authorizationServer.service;
+
+import mango.security.authorizationServer.dto.StoredTokenDto;
+import mango.security.authorizationServer.dto.TokenPairDto;
+import mango.security.authorizationServer.exception.AuthException;
+import mango.security.authorizationServer.type.ApiResponseType;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+
+@Service
+public class TokenRedisServiceImpl implements TokenRedisService {
+
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    public TokenRedisServiceImpl(RedisTemplate<String, Object> redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
+
+    private String buildKey(String tokenType, String tokenValue) {
+        return tokenType + "_token:" + tokenValue;
+    }
+
+    @Override
+    public void saveToken(StoredTokenDto token) {
+        String key = buildKey(token.tokenType(), token.tokenValue());
+        Duration ttl = Duration.between(token.issuedAt(), token.expiresAt());
+        redisTemplate.opsForValue().set(key, token, ttl);
+    }
+
+    @Override
+    public StoredTokenDto getToken(String tokenValue, String tokenType) {
+        String key = buildKey(tokenType, tokenValue);
+        Object value = redisTemplate.opsForValue().get(key);
+        if (value instanceof StoredTokenDto dto) {
+            return dto;
+        }
+        throw new AuthException(ApiResponseType.INVALID_TOKEN);
+    }
+
+    @Override
+    public void deleteToken(String tokenValue, String tokenType) {
+        redisTemplate.delete(buildKey(tokenType, tokenValue));
+    }
+
+    @Override
+    public void saveTokenPair(TokenPairDto pair) {
+        saveToken(pair.accessToken());
+        saveToken(pair.refreshToken());
+
+        // token 연관성 저장
+        redisTemplate.opsForValue().set("access_to_refresh:" + pair.accessToken().tokenValue(), pair.refreshToken().tokenValue());
+        redisTemplate.opsForValue().set("refresh_to_access:" + pair.refreshToken().tokenValue(), pair.accessToken().tokenValue());
+    }
+
+    @Override
+    public void deleteTokenPair(String accessTokenValue, String refreshTokenValue) {
+        deleteToken(accessTokenValue, "access");
+        deleteToken(refreshTokenValue, "refresh");
+
+        redisTemplate.delete("access_to_refresh:" + accessTokenValue);
+        redisTemplate.delete("refresh_to_access:" + refreshTokenValue);
     }
 }
 
