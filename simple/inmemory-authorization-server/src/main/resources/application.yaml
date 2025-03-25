@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: inmemory-authorization-server
+logging:
+  level:
+    org.springframework.security: TRACE # Optional: for debugging
+server:
+  port: 9000
