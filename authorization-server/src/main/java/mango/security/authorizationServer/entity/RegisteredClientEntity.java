@@ -43,9 +43,9 @@ public class RegisteredClientEntity {
     @Column(name = "scopes", nullable = false)
     private String scopes;
 
-    @Column(name = "client_settings", nullable = false)
+    @Column(name = "client_settings", nullable = false, length = 2000)
     private String clientSettings;
 
-    @Column(name = "token_settings", nullable = false)
+    @Column(name = "token_settings", nullable = false, length = 2000)
     private String tokenSettings;
 }
