@@ -160,6 +160,86 @@ public class JwkConfig {
 }
 
 
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\OAuth2TokenCustomizerConfig.java
+package mango.security.authorizationServer.config;
+
+import mango.security.authorizationServer.dto.StoredTokenDto;
+import mango.security.authorizationServer.service.TokenPersistenceService;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Configuration
+public class OAuth2TokenCustomizerConfig {
+    @Value("${token.refreshToken.ttl}")
+    private long rereshTokenTtl;
+
+    private final TokenPersistenceService tokenPersistenceService;
+
+    public OAuth2TokenCustomizerConfig(TokenPersistenceService tokenPersistenceService) {
+        this.tokenPersistenceService = tokenPersistenceService;
+    }
+
+    @Bean
+    public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {
+        return context -> {
+            // OAuth2AuthorizationServerConfigurer 내에서 access token 발급 시 이 커스터마이저가 호출됩니다.
+            if ("access_token".equals(context.getTokenType().getValue())) {
+                JwtClaimsSet.Builder claimsBuilder = context.getClaims();
+                JwtClaimsSet claims = claimsBuilder.build();
+                Instant issuedAt = claims.getIssuedAt();
+                Instant expiresAt = claims.getExpiresAt();
+
+//                String accessTokenValue = context.getTokenValue();
+                String accessTokenValue;
+                if (claims.getClaim("jti") != null) {
+                    accessTokenValue = claims.getClaim("jti").toString();
+                } else {
+                    accessTokenValue = UUID.randomUUID().toString();
+                    claimsBuilder.claim("jti", accessTokenValue);
+                }
+                String principalName = context.getPrincipal().getName();
+                String clientId = context.getRegisteredClient().getClientId();
+
+                // Access token 정보 DTO 생성
+                StoredTokenDto accessTokenDto = new StoredTokenDto(
+                        accessTokenValue,
+                        principalName,
+                        clientId,
+                        "access",
+                        issuedAt,
+                        expiresAt
+                );
+
+                String refreshTokenValue = UUID.randomUUID().toString();
+                // refresh token 발급 시점과 만료 시간은 정책에 따라 정합니다.
+                Instant refreshIssuedAt = Instant.now();
+                // refreshTokenTtl는 일(day) 단위로 설정됨 (예: 7일)
+                long ttl = rereshTokenTtl * 60 * 60 * 24;
+                Instant refreshExpiresAt = refreshIssuedAt.plusSeconds(ttl); // 예: 1일
+                StoredTokenDto refreshTokenDto = new StoredTokenDto(
+                        refreshTokenValue,
+                        principalName,
+                        clientId,
+                        "refresh",
+                        refreshIssuedAt,
+                        refreshExpiresAt
+                );
+
+                // 토큰 쌍 저장
+                tokenPersistenceService.persistTokenPair(accessTokenDto, refreshTokenDto);
+            }
+        };
+    }
+}
+
+
 C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\RedisConfig.java
 package mango.security.authorizationServer.config;
 
@@ -249,7 +329,14 @@ public class SecurityConfig {
                     .authenticationEntryPoint(customAuthenticationEntryPoint)
                     .accessDeniedHandler(customAccessDeniedHandler)
             )
-            .formLogin(Customizer.withDefaults()); // form login for test
+            .formLogin(Customizer.withDefaults()) // form login for test
+            // 로그아웃은 별도의 LogoutController를 통해 처리하므로 기본 로그아웃 URL은 비활성화하거나 설정만 해둡니다.
+            .logout(logout -> logout
+                    .logoutUrl("/api/logout")
+                    .logoutSuccessHandler((request, response, authentication) -> {
+                        // 로그아웃 성공 후 별도 처리는 LogoutController에서 담당
+                    })
+            );
 
         return http.build();
     }
@@ -279,6 +366,38 @@ public class ConsentController {
     public BaseResponseDto<Object> consentInfo(ConsentRequestDto reqDto) {
         var data = consentService.extractConsentInfo(reqDto);
         return BaseResponseDto.of(ApiResponseType.SUCCESS, data);
+    }
+}
+
+
+C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\controller\LogoutController.java
+package mango.security.authorizationServer.controller;
+
+import mango.security.authorizationServer.dto.BaseResponseDto;
+import mango.security.authorizationServer.service.TokenRedisService;
+import mango.security.authorizationServer.type.ApiResponseType;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/logout")
+public class LogoutController {
+
+    private final TokenRedisService tokenRedisService;
+
+    public LogoutController(TokenRedisService tokenRedisService) {
+        this.tokenRedisService = tokenRedisService;
+    }
+
+    /**
+     * 로그아웃 시 access token과 refresh token을 철회(삭제) 처리하는 API
+     * 클라이언트는 accessToken, refreshToken 값을 전달해야 합니다.
+     */
+    @DeleteMapping
+    public BaseResponseDto<Object> logout(String accessToken, String refreshToken) {
+        tokenRedisService.deleteTokenPair(accessToken, refreshToken);
+        return BaseResponseDto.of(ApiResponseType.SUCCESS, "로그아웃 및 토큰 철회가 완료되었습니다.");
     }
 }
 
@@ -529,13 +648,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import lombok.Getter;
-import lombok.Setter;
-
 import java.time.Instant;
 
 @Entity
-@Getter @Setter
 @Table(name = "oauth2_authorization")
 public class OAuth2AuthorizationEntity {
 
@@ -556,6 +671,58 @@ public class OAuth2AuthorizationEntity {
 
     @Column(name = "refresh_token_expires_at")
     private Instant refreshTokenExpiresAt;
+
+    public OAuth2AuthorizationEntity() {}
+
+    // getters and setters
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+
+    public String getPrincipalName() {
+        return principalName;
+    }
+
+    public void setPrincipalName(String principalName) {
+        this.principalName = principalName;
+    }
+
+    public String getRefreshTokenValue() {
+        return refreshTokenValue;
+    }
+
+    public void setRefreshTokenValue(String refreshTokenValue) {
+        this.refreshTokenValue = refreshTokenValue;
+    }
+
+    public Instant getRefreshTokenIssuedAt() {
+        return refreshTokenIssuedAt;
+    }
+
+    public void setRefreshTokenIssuedAt(Instant refreshTokenIssuedAt) {
+        this.refreshTokenIssuedAt = refreshTokenIssuedAt;
+    }
+
+    public Instant getRefreshTokenExpiresAt() {
+        return refreshTokenExpiresAt;
+    }
+
+    public void setRefreshTokenExpiresAt(Instant refreshTokenExpiresAt) {
+        this.refreshTokenExpiresAt = refreshTokenExpiresAt;
+    }
 }
 
 
@@ -568,6 +735,7 @@ import lombok.*;
 import java.time.Instant;
 
 @Entity
+@Getter @Setter
 @Table(name = "oauth2_registered_client")
 public class RegisteredClientEntity {
 
@@ -644,6 +812,7 @@ import mango.security.authorizationServer.type.ApiResponseType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -651,13 +820,20 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+    // 모든 예외 처리 (최종 캐치)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<BaseResponseDto<Object>> handleAllExceptions(Exception ex) {
+        // 로깅 등 추가 작업 가능
         return new ResponseEntity<>(BaseResponseDto.withMessage(ApiResponseType.ERROR, ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<BaseResponseDto<Object>> handleAuthenticationException(AuthenticationException ex) {
+        return new ResponseEntity<>(BaseResponseDto.withMessage(ApiResponseType.UNAUTHORIZED, ex.getMessage()), HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(OAuth2AuthenticationException.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleOAuth2AuthenticationException(OAuth2AuthenticationException ex) {
         return new ResponseEntity<>(BaseResponseDto.withMessage(ApiResponseType.UNAUTHORIZED, ex.getMessage()), HttpStatus.UNAUTHORIZED);
     }
 
@@ -759,7 +935,6 @@ public interface AuthorizationConsentRepository
         extends JpaRepository<OAuth2AuthorizationConsentEntity, AuthorizationConsentId> {
 
     Optional<OAuth2AuthorizationConsentEntity> findById(AuthorizationConsentId id);
-    Optional<OAuth2AuthorizationConsentEntity> findByRefreshTokenValue(String refreshTokenValue);
 }
 
 
@@ -843,8 +1018,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
         ApiResponseType responseType;
-
-        // 토큰 만료 예외 처리 (ExpiredJwtException 또는 JwtException 사용)
+        // 토큰 만료 관련 예외 처리
         if (authException.getCause() != null &&
                 authException.getCause().getMessage() != null &&
                 authException.getCause().getMessage().toLowerCase().contains("expired")) {
@@ -853,12 +1027,13 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
             responseType = ApiResponseType.INVALID_TOKEN;
         }
         response.setCharacterEncoding("UTF-8");
-        BaseResponseDto<Object> errorResponse = BaseResponseDto.withMessage(responseType, null);
+        BaseResponseDto<Object> errorResponse = BaseResponseDto.withMessage(responseType, authException.getMessage());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(Integer.parseInt(responseType.getStatus()));
         response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }
 }
+
 
 C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\AuthorizationConsentService.java
 package mango.security.authorizationServer.service;
@@ -964,40 +1139,49 @@ C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\
 package mango.security.authorizationServer.service;
 
 import mango.security.authorizationServer.dto.StoredTokenDto;
-import mango.security.authorizationServer.entity.OAuth2AuthorizationConsentEntity;
-import mango.security.authorizationServer.repository.AuthorizationConsentRepository;
+import mango.security.authorizationServer.entity.OAuth2AuthorizationEntity;
+import mango.security.authorizationServer.exception.AuthException;
+import mango.security.authorizationServer.repository.OAuth2AuthorizationRepository;
+import mango.security.authorizationServer.type.ApiResponseType;
+import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
-public class RefreshTokenServiceImpl implements  RefreshTokenService{
-    private final TokenRedisService tokenRedisService;
-    private final AuthorizationConsentRepository authorizationConsentRepository;
+@Service
+public class RefreshTokenServiceImpl implements RefreshTokenService {
 
-    public RefreshTokenServiceImpl(TokenRedisService tokenRedisService, AuthorizationConsentRepository authorizationConsentRepository) {
+    private final TokenRedisService tokenRedisService;
+    private final OAuth2AuthorizationRepository authorizationRepository;
+
+    public RefreshTokenServiceImpl(TokenRedisService tokenRedisService,
+                                OAuth2AuthorizationRepository authorizationRepository) {
         this.tokenRedisService = tokenRedisService;
-        this.authorizationConsentRepository = authorizationConsentRepository;
+        this.authorizationRepository = authorizationRepository;
     }
 
     @Override
     public StoredTokenDto getRefreshToken(String refreshTokenValue) {
-        try{
+        try {
+            // 먼저 Redis에서 조회
             return tokenRedisService.getToken(refreshTokenValue, "refresh_token");
-        } catch (Exception e){
-            Optional<OAuth2AuthorizationConsentEntity> tmp = authorizationConsentRepository.findByRefreshTokenValue(refreshTokenValue);
-            if(tmp.isEmpty()){
-                return null;
+        } catch (AuthException ex) {
+            // Redis에 없으면 DB 조회
+            Optional<OAuth2AuthorizationEntity> tmp = authorizationRepository.findByRefreshTokenValue(refreshTokenValue);
+            if (tmp.isEmpty()) {
+                throw new AuthException(ApiResponseType.INVALID_TOKEN, "DB에 refresh token이 존재하지 않습니다.");
             }
-            OAuth2AuthorizationConsentEntity entity = tmp.get();
-            StoredTokenDto storedTokenDto = converEntityToStoredToken(entity);
+            OAuth2AuthorizationEntity entity = tmp.get();
+            StoredTokenDto storedTokenDto = convertEntityToStoredToken(entity);
+            // DB에서 조회한 토큰을 Redis에 재저장 (선택 사항)
             tokenRedisService.saveToken(storedTokenDto);
             return storedTokenDto;
         }
     }
 
-    private StoredTokenDto converEntityToStoredToken(OAuth2AuthorizationConsentEntity entity) {
+    private StoredTokenDto convertEntityToStoredToken(OAuth2AuthorizationEntity entity) {
         return new StoredTokenDto(
                 entity.getRefreshTokenValue(),
-                entity.getId().getPrincipalName(),
+                entity.getPrincipalName(),
                 entity.getClientId(),
                 "refresh",
                 entity.getRefreshTokenIssuedAt(),
@@ -1012,7 +1196,9 @@ package mango.security.authorizationServer.service;
 
 import mango.security.authorizationServer.dto.StoredTokenDto;
 import mango.security.authorizationServer.dto.TokenPairDto;
+import org.springframework.stereotype.Service;
 
+@Service
 public class TokenPersistenceService {
     private final TokenRedisService tokenRedisService;
 
@@ -1020,9 +1206,14 @@ public class TokenPersistenceService {
         this.tokenRedisService = tokenRedisService;
     }
 
-    public void persisTokenPair(StoredTokenDto accessToken, StoredTokenDto refreshToken) {
-        TokenPairDto pair = new TokenPairDto(accessToken, refreshToken);
-        tokenRedisService.saveTokenPair(pair);
+    public void persistTokenPair(StoredTokenDto accessToken, StoredTokenDto refreshToken) {
+        if (refreshToken != null) {
+            TokenPairDto pair = new TokenPairDto(accessToken, refreshToken);
+            tokenRedisService.saveTokenPair(pair);
+        } else {
+            // refresh token이 없는 경우 단일 저장
+            tokenRedisService.saveToken(accessToken);
+        }
     }
 }
 

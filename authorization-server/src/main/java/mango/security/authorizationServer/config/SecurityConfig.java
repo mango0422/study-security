@@ -26,7 +26,14 @@ public class SecurityConfig {
                     .authenticationEntryPoint(customAuthenticationEntryPoint)
                     .accessDeniedHandler(customAccessDeniedHandler)
             )
-            .formLogin(Customizer.withDefaults()); // form login for test
+            .formLogin(Customizer.withDefaults()) // form login for test
+            // 로그아웃은 별도의 LogoutController를 통해 처리하므로 기본 로그아웃 URL은 비활성화하거나 설정만 해둡니다.
+            .logout(logout -> logout
+                    .logoutUrl("/api/logout")
+                    .logoutSuccessHandler((request, response, authentication) -> {
+                        // 로그아웃 성공 후 별도 처리는 LogoutController에서 담당
+                    })
+            );
 
         return http.build();
     }

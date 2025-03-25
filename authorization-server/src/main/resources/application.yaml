@@ -32,3 +32,7 @@ logging:
         type:
           descriptor:
             sql: TRACE
+
+token:
+  refreshToken:
+    ttl: ${REFRESH_TTL:7} // 일 수 단위로

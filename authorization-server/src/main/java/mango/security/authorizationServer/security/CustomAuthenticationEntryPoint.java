@@ -21,8 +21,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
         ApiResponseType responseType;
-
-        // 토큰 만료 예외 처리 (ExpiredJwtException 또는 JwtException 사용)
+        // 토큰 만료 관련 예외 처리
         if (authException.getCause() != null &&
                 authException.getCause().getMessage() != null &&
                 authException.getCause().getMessage().toLowerCase().contains("expired")) {
@@ -31,7 +30,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
             responseType = ApiResponseType.INVALID_TOKEN;
         }
         response.setCharacterEncoding("UTF-8");
-        BaseResponseDto<Object> errorResponse = BaseResponseDto.withMessage(responseType, null);
+        BaseResponseDto<Object> errorResponse = BaseResponseDto.withMessage(responseType, authException.getMessage());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(Integer.parseInt(responseType.getStatus()));
         response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
