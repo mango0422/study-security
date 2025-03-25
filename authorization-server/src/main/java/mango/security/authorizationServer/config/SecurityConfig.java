@@ -11,6 +11,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractAuthenticationFilterConfigurer;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -76,11 +78,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                     .anyRequest().permitAll()
             )
-            .formLogin(form -> form
-                    .permitAll()
+            .formLogin(AbstractAuthenticationFilterConfigurer::permitAll
             )
             .logout(Customizer.withDefaults())
-            .csrf(csrf -> csrf.disable());
+            .csrf(AbstractHttpConfigurer::disable);
 
         return http.build();
     }

@@ -1,0 +1,228 @@
+{
+  "info": {
+    "name": "Authorization Server API Test",
+    "_postman_id": "12345678-1234-1234-1234-123456789abc",
+    "description": "현재 코드와 DB/Redis 환경에 맞춘 테스트 Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Consent API 테스트",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:9000/oauth2/consent?client_id=mango-client&scope=read%20write&redirect_uri=http://localhost:3000/login/oauth2/code/mango-client",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "9000",
+          "path": [
+            "oauth2",
+            "consent"
+          ],
+          "query": [
+            {
+              "key": "client_id",
+              "value": "mango-client"
+            },
+            {
+              "key": "scope",
+              "value": "read write"
+            },
+            {
+              "key": "redirect_uri",
+              "value": "http://localhost:3000/login/oauth2/code/mango-client"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Logout API 테스트",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "accessToken",
+              "value": "여기에_실제_액세스_토큰값_입력"
+            },
+            {
+              "key": "refreshToken",
+              "value": "여기에_실제_리프레시_토큰값_입력"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:9000/api/logout",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "9000",
+          "path": [
+            "api",
+            "logout"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Token Debug - Save Single Token",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:9000/api/debug/token/save?type=access",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "9000",
+          "path": [
+            "api",
+            "debug",
+            "token",
+            "save"
+          ],
+          "query": [
+            {
+              "key": "type",
+              "value": "access"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Token Debug - Save Token Pair",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:9000/api/debug/token/save-pair",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "9000",
+          "path": [
+            "api",
+            "debug",
+            "token",
+            "save-pair"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Token Debug - Get Token",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:9000/api/debug/token/get?type=access&value={{accessToken}}",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "9000",
+          "path": [
+            "api",
+            "debug",
+            "token",
+            "get"
+          ],
+          "query": [
+            {
+              "key": "type",
+              "value": "access"
+            },
+            {
+              "key": "value",
+              "value": "{{accessToken}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Token Debug - Delete Token",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:9000/api/debug/token/delete?type=access&value={{accessToken}}",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "9000",
+          "path": [
+            "api",
+            "debug",
+            "token",
+            "delete"
+          ],
+          "query": [
+            {
+              "key": "type",
+              "value": "access"
+            },
+            {
+              "key": "value",
+              "value": "{{accessToken}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Token Debug - Delete Token Pair",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:9000/api/debug/token/delete-pair?access={{accessToken}}&refresh={{refreshToken}}",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "9000",
+          "path": [
+            "api",
+            "debug",
+            "token",
+            "delete-pair"
+          ],
+          "query": [
+            {
+              "key": "access",
+              "value": "{{accessToken}}"
+            },
+            {
+              "key": "refresh",
+              "value": "{{refreshToken}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

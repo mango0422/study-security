@@ -1,4 +1,5 @@
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\AuthorizationServerApplication.java
+﻿
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\AuthorizationServerApplication.java
 package mango.security.authorizationServer;
 
 import org.springframework.boot.SpringApplication;
@@ -14,7 +15,7 @@ public class AuthorizationServerApplication {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\AuthorizationServerConfig.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\AuthorizationServerConfig.java
 package mango.security.authorizationServer.config;
 
 import org.springframework.context.annotation.Bean;
@@ -63,7 +64,7 @@ public class AuthorizationServerConfig {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\JwkConfig.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\JwkConfig.java
 package mango.security.authorizationServer.config;
 
 // java security : 키 생성 관련련
@@ -160,7 +161,7 @@ public class JwkConfig {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\OAuth2TokenCustomizerConfig.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\OAuth2TokenCustomizerConfig.java
 package mango.security.authorizationServer.config;
 
 import mango.security.authorizationServer.dto.StoredTokenDto;
@@ -240,7 +241,7 @@ public class OAuth2TokenCustomizerConfig {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\RedisConfig.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\RedisConfig.java
 package mango.security.authorizationServer.config;
 
 import mango.security.authorizationServer.exception.RedisException;
@@ -300,11 +301,12 @@ public class RedisConfig {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\SecurityConfig.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\config\SecurityConfig.java
 package mango.security.authorizationServer.config;
 
 import mango.security.authorizationServer.filter.PreflightClientCheckFilter;
 import mango.security.authorizationServer.repository.RegisteredClientJpaRepository;
+import mango.security.authorizationServer.service.CustomUserDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -328,14 +330,8 @@ import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 public class SecurityConfig {
 
     @Bean
-    public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
-        // 테스트용 사용자 추가 (username: test, password: test123)
-        InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
-        manager.createUser(User.withUsername("test")
-                .password(passwordEncoder.encode("test1234"))
-                .roles("USER")
-                .build());
-        return manager;
+    public UserDetailsService userDetailsService(CustomUserDetailsService customUserDetailsService) {
+        return customUserDetailsService;
     }
 
     @Bean
@@ -394,7 +390,7 @@ public class SecurityConfig {
     }
 }
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\controller\ConsentController.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\controller\ConsentController.java
 package mango.security.authorizationServer.controller;
 
 import mango.security.authorizationServer.dto.BaseResponseDto;
@@ -422,7 +418,7 @@ public class ConsentController {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\controller\LogoutController.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\controller\LogoutController.java
 package mango.security.authorizationServer.controller;
 
 import mango.security.authorizationServer.dto.BaseResponseDto;
@@ -454,7 +450,7 @@ public class LogoutController {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\controller\TokenDebugController.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\controller\TokenDebugController.java
 package mango.security.authorizationServer.controller;
 
 import mango.security.authorizationServer.dto.BaseResponseDto;
@@ -532,7 +528,7 @@ public class TokenDebugController {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\BaseResponseDto.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\BaseResponseDto.java
 package mango.security.authorizationServer.dto;
 
 import mango.security.authorizationServer.type.ApiResponseType;
@@ -548,7 +544,7 @@ public record BaseResponseDto<T>(String status, String message, T data) {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\ConsentConfirmRequestDto.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\ConsentConfirmRequestDto.java
 package mango.security.authorizationServer.dto;
 
 public record ConsentConfirmRequestDto(
@@ -558,7 +554,7 @@ public record ConsentConfirmRequestDto(
 ) {}
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\ConsentRequestDto.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\ConsentRequestDto.java
 package mango.security.authorizationServer.dto;
 
 public record ConsentRequestDto(
@@ -568,7 +564,7 @@ public record ConsentRequestDto(
 ) {}
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\StoredTokenDto.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\StoredTokenDto.java
 package mango.security.authorizationServer.dto;
 
 import java.io.Serializable;
@@ -584,7 +580,7 @@ public record StoredTokenDto(
 ) implements Serializable {}
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\TokenPairDto.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\dto\TokenPairDto.java
 package mango.security.authorizationServer.dto;
 
 import java.io.Serializable;
@@ -595,7 +591,7 @@ public record TokenPairDto(
 ) implements Serializable {}
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\AuthorizationConsentId.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\AuthorizationConsentId.java
 package mango.security.authorizationServer.entity;
 
 import jakarta.persistence.Column;
@@ -648,7 +644,7 @@ public class AuthorizationConsentId implements Serializable {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\OAuth2AuthorizationConsentEntity.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\OAuth2AuthorizationConsentEntity.java
 package mango.security.authorizationServer.entity;
 
 import jakarta.persistence.*;
@@ -693,7 +689,7 @@ public class OAuth2AuthorizationConsentEntity {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\OAuth2AuthorizationEntity.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\OAuth2AuthorizationEntity.java
 package mango.security.authorizationServer.entity;
 
 import jakarta.persistence.Column;
@@ -778,7 +774,7 @@ public class OAuth2AuthorizationEntity {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\RegisteredClientEntity.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\RegisteredClientEntity.java
 package mango.security.authorizationServer.entity;
 
 import jakarta.persistence.*;
@@ -832,7 +828,37 @@ public class RegisteredClientEntity {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\exception\AuthException.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\entity\UserEntity.java
+package mango.security.authorizationServer.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "users")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class UserEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(unique = true, nullable = false, length = 100)
+    private String username;
+
+    @Column(nullable = false)
+    private String password;
+
+    // 역할(Role) 정보를 단순 문자열로 저장 (쉼표로 구분 등)
+    @Column(nullable = false, length = 500)
+    private String roles;
+}
+
+
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\exception\AuthException.java
 package mango.security.authorizationServer.exception;
 
 import mango.security.authorizationServer.type.ApiResponseType;
@@ -856,7 +882,7 @@ public class AuthException extends RuntimeException {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\exception\GlobalExceptionHandler.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\exception\GlobalExceptionHandler.java
 package mango.security.authorizationServer.exception;
 
 import mango.security.authorizationServer.dto.BaseResponseDto;
@@ -909,7 +935,7 @@ public class GlobalExceptionHandler {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\exception\RedisException.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\exception\RedisException.java
 package mango.security.authorizationServer.exception;
 
 import mango.security.authorizationServer.type.ApiResponseType;
@@ -928,7 +954,7 @@ public class RedisException extends RuntimeException {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\filter\PreflightClientCheckFilter.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\filter\PreflightClientCheckFilter.java
 package mango.security.authorizationServer.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -974,7 +1000,7 @@ public class PreflightClientCheckFilter extends OncePerRequestFilter {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\AuthorizationConsentRepository.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\AuthorizationConsentRepository.java
 package mango.security.authorizationServer.repository;
 
 import mango.security.authorizationServer.entity.AuthorizationConsentId;
@@ -990,7 +1016,7 @@ public interface AuthorizationConsentRepository
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\OAuth2AuthorizationRepository.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\OAuth2AuthorizationRepository.java
 package mango.security.authorizationServer.repository;
 
 import mango.security.authorizationServer.entity.OAuth2AuthorizationEntity;
@@ -1002,7 +1028,7 @@ public interface OAuth2AuthorizationRepository extends JpaRepository<OAuth2Autho
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\RegisteredClientJpaRepository.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\RegisteredClientJpaRepository.java
 package mango.security.authorizationServer.repository;
 
 import mango.security.authorizationServer.entity.RegisteredClientEntity;
@@ -1016,7 +1042,20 @@ public interface RegisteredClientJpaRepository extends JpaRepository<RegisteredC
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\security\CustomAccessDeniedHandler.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\repository\UserRepository.java
+package mango.security.authorizationServer.repository;
+
+import mango.security.authorizationServer.entity.UserEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface UserRepository extends JpaRepository<UserEntity, Long> {
+    Optional<UserEntity> findByUsername(String username);
+}
+
+
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\security\CustomAccessDeniedHandler.java
 package mango.security.authorizationServer.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -1046,7 +1085,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
     }
 }
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\security\CustomAuthenticationEntryPoint.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\security\CustomAuthenticationEntryPoint.java
 package mango.security.authorizationServer.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -1087,7 +1126,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\AuthorizationConsentService.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\AuthorizationConsentService.java
 package mango.security.authorizationServer.service;
 
 import mango.security.authorizationServer.dto.ConsentConfirmRequestDto;
@@ -1140,7 +1179,7 @@ public class AuthorizationConsentService {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\ConsentService.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\ConsentService.java
 package mango.security.authorizationServer.service;
 
 import mango.security.authorizationServer.dto.ConsentRequestDto;
@@ -1177,7 +1216,44 @@ public class ConsentService {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\RefreshTokenService.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\CustomUserDetailsService.java
+package mango.security.authorizationServer.service;
+
+import mango.security.authorizationServer.entity.UserEntity;
+import mango.security.authorizationServer.repository.UserRepository;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.*;
+import org.springframework.stereotype.Service;
+
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final UserRepository userRepository;
+
+    public CustomUserDetailsService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        UserEntity userEntity = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username));
+        return new User(
+                userEntity.getUsername(),
+                userEntity.getPassword(),
+                Arrays.stream(userEntity.getRoles().split(","))
+                        .map(String::trim)
+                        .map(SimpleGrantedAuthority::new)
+                        .collect(Collectors.toList())
+        );
+    }
+}
+
+
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\RefreshTokenService.java
 package mango.security.authorizationServer.service;
 
 import mango.security.authorizationServer.dto.StoredTokenDto;
@@ -1187,7 +1263,7 @@ public interface RefreshTokenService {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\RefreshTokenServiceImpl.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\RefreshTokenServiceImpl.java
 package mango.security.authorizationServer.service;
 
 import mango.security.authorizationServer.dto.StoredTokenDto;
@@ -1243,7 +1319,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\TokenPersistenceService.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\TokenPersistenceService.java
 package mango.security.authorizationServer.service;
 
 import mango.security.authorizationServer.dto.StoredTokenDto;
@@ -1270,7 +1346,7 @@ public class TokenPersistenceService {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\TokenRedisService.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\TokenRedisService.java
 package mango.security.authorizationServer.service;
 
 import mango.security.authorizationServer.dto.StoredTokenDto;
@@ -1286,7 +1362,7 @@ public interface TokenRedisService {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\TokenRedisServiceImpl.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\service\TokenRedisServiceImpl.java
 package mango.security.authorizationServer.service;
 
 import mango.security.authorizationServer.dto.StoredTokenDto;
@@ -1354,7 +1430,7 @@ public class TokenRedisServiceImpl implements TokenRedisService {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\type\ApiResponseType.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\type\ApiResponseType.java
 package mango.security.authorizationServer.type;
 
 import lombok.Getter;
@@ -1389,7 +1465,7 @@ public enum ApiResponseType {
 }
 
 
-C:\Users\tom99\study-security\authorization-server\src\main\java\mango\security\authorizationServer\util\Assert.java
+C:\Users\tom99\workspace\study-security\authorization-server\src\main\java\mango\security\authorizationServer\util\Assert.java
 package mango.security.authorizationServer.util;
 
 import mango.security.authorizationServer.exception.AuthException;
@@ -1429,5 +1505,4 @@ public class Assert {
         }
     }
 }
-
 
