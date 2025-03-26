@@ -1,3 +1,18 @@
+C:\Users\tom99\study-security\simple\inmemory-authorization-server\src\main\java\mango\security\InmemoryAuthorizationServerApplication.java
+package mango.security;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class InmemoryAuthorizationServerApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(InmemoryAuthorizationServerApplication.class, args);
+    }
+}
+
+
+C:\Users\tom99\study-security\simple\inmemory-authorization-server\src\main\java\mango\security\SecurityConfig.java
 package mango.security;
 
 import com.nimbusds.jose.jwk.JWKSet;
@@ -153,3 +168,4 @@ public class SecurityConfig {
         return AuthorizationServerSettings.builder().build();
     }
 }
+
