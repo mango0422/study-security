@@ -1,5 +1,5 @@
 
-C:\Users\tom99\workspace\study-security\frontend\src\api\core\auth-server.ts
+C:\Users\tom99\study-security\frontend\src\api\core\auth-server.ts
 // src/api/core/auth-server.ts
 import { createAxiosInstance } from './base'
 
@@ -8,7 +8,7 @@ const authServer = createAxiosInstance('http://localhost:9000')
 export default authServer
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\api\core\backend.ts
+C:\Users\tom99\study-security\frontend\src\api\core\backend.ts
 // src/api/core/backend.ts
 import axios from 'axios' // axios 직접 사용으로 변경 (createAxiosInstance 불필요 시)
 import Cookies from 'js-cookie'
@@ -118,7 +118,7 @@ backend.interceptors.response.use(
 export default backend
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\api\core\base.ts
+C:\Users\tom99\study-security\frontend\src\api\core\base.ts
 // src/api/core/base.ts
 import axios, { AxiosInstance } from 'axios'
 
@@ -134,7 +134,7 @@ export const createAxiosInstance = (baseURL: string): AxiosInstance => {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\api\core\http.ts
+C:\Users\tom99\study-security\frontend\src\api\core\http.ts
 // src/api/core/http.ts
 import { AxiosInstance, Method, AxiosRequestConfig } from 'axios'
 
@@ -152,7 +152,7 @@ export const createHttpClient = (instance: AxiosInstance) => ({
 })
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\api\core\index.ts
+C:\Users\tom99\study-security\frontend\src\api\core\index.ts
 // src/api/core/index.ts
 export * from './http'
 export { default as authServer } from './auth-server'
@@ -160,7 +160,7 @@ export { default as backend } from './backend'
 export * from './base'
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\api\auth-api.ts
+C:\Users\tom99\study-security\frontend\src\api\auth-api.ts
 // src/api/auth-api.ts
 import { createHttpClient, backend /*, authServer */ } from './core'
 import Cookies from 'js-cookie'
@@ -246,7 +246,7 @@ export const oauthAuth = {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\components\Nav.tsx
+C:\Users\tom99\study-security\frontend\src\components\Nav.tsx
 // src/components/Nav.tsx
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
@@ -322,7 +322,7 @@ export default function Nav() {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\components\NeonTwinGlowBox.tsx
+C:\Users\tom99\study-security\frontend\src\components\NeonTwinGlowBox.tsx
 // import React from 'react'
 
 // export default function NeonTwinGlowBox() {
@@ -401,7 +401,7 @@ export default function NeonTwinGlowBox() {
   )
 }
 
-C:\Users\tom99\workspace\study-security\frontend\src\components\ProtectedRoute.tsx
+C:\Users\tom99\study-security\frontend\src\components\ProtectedRoute.tsx
 // src/components/ProtectedRoute.tsx
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthContext } from '../context/auth' // useAuthContext 사용
@@ -415,7 +415,7 @@ export default function ProtectedRoute() {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\context\auth.tsx
+C:\Users\tom99\study-security\frontend\src\context\auth.tsx
 // src/context/auth.tsx
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import Cookies from 'js-cookie'
@@ -467,22 +467,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const token = Cookies.get('accessToken')
     if (token) {
       try {
-        // 보호된 API 호출하여 토큰 유효성 검증 (예: /api/messages 또는 /userinfo)
-        await backend.get('/messages') // backend 인스턴스 사용
+        await backend.get('/messages')
         setIsAuthenticated(true)
-        console.log('User is authenticated via token check.')
+        console.log('✅ User is authenticated via token check.')
       } catch (error) {
-        console.error('Token validation failed or token expired:', error)
-        // 토큰 만료 또는 무효 시 토큰 제거 (Refresh 로직은 인터셉터에서 처리)
-        // Cookies.remove('accessToken'); // 인터셉터에서 실패 시 제거하므로 여기선 불필요할 수 있음
-        // Cookies.remove('refreshToken');
+        console.error('❌ Token validation failed:', error)
         setIsAuthenticated(false)
       }
     } else {
+      console.log('❌ No access token found.')
       setIsAuthenticated(false)
     }
     setIsLoading(false)
-  }) // 종속성 없음
+  }, [])
+
+  useEffect(() => {
+    checkAuth()
+  }, [checkAuth]) // 이제 checkAuth는 변하지 않으므로 useEffect는 앱 로드시 한 번만 실행됩니다.
 
   // 앱 로드 시 인증 상태 확인
   useEffect(() => {
@@ -547,7 +548,7 @@ export const useAuth = () => {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\hooks\useAuth.ts
+C:\Users\tom99\study-security\frontend\src\hooks\useAuth.ts
 // src/hooks/useAuth.ts
 import { useLoginType } from './useLoginType'
 import { jpaAuth, inMemoryAuth, oauthAuth } from '../api/auth-api'
@@ -560,7 +561,7 @@ export const useAuth = () => {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\hooks\useLoginType.ts
+C:\Users\tom99\study-security\frontend\src\hooks\useLoginType.ts
 // src/hooks/useLoginType.ts
 import { useLocation } from 'react-router-dom'
 
@@ -570,9 +571,9 @@ export const useLoginType = (): 'JPA' | 'OAuth' | 'InMemory' => {
   if (location.pathname.startsWith('/oauth')) return 'OAuth'
   return 'InMemory'
 }
+  
 
-
-C:\Users\tom99\workspace\study-security\frontend\src\pages\Home.tsx
+C:\Users\tom99\study-security\frontend\src\pages\Home.tsx
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useLoginType } from '../hooks/useLoginType'
@@ -605,7 +606,7 @@ export default function Home() {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\pages\index.ts
+C:\Users\tom99\study-security\frontend\src\pages\index.ts
 export { default as Home } from './Home.tsx'
 export { default as Login } from './Login.tsx'
 export { default as Signup } from './Signup.tsx'
@@ -613,7 +614,7 @@ export { default as OauthCallback } from './OauthCallback.tsx'
 export { default as LandingPage } from './LandingPage.tsx'
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\pages\LandingPage.tsx
+C:\Users\tom99\study-security\frontend\src\pages\LandingPage.tsx
 // src/pages/LandingPage.tsx
 import { useNavigate } from 'react-router-dom'
 import { oauthAuth } from '../api/auth-api' // oauthAuth 임포트
@@ -665,7 +666,7 @@ export default function LandingPage() {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\pages\Login.tsx
+C:\Users\tom99\study-security\frontend\src\pages\Login.tsx
 // src/pages/Login.tsx
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
@@ -722,14 +723,16 @@ export default function Login() {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\pages\OauthCallback.tsx
+C:\Users\tom99\study-security\frontend\src\pages\OauthCallback.tsx
 // src/pages/OauthCallback.tsx
+import { useAuthContext } from '../context/auth'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Cookies from 'js-cookie'
 
 export default function OauthCallback() {
   const navigate = useNavigate()
+  const { checkAuth } = useAuthContext()
 
   useEffect(() => {
     const exchangeCodeForToken = async () => {
@@ -793,6 +796,9 @@ export default function OauthCallback() {
         }
 
         console.log('Tokens obtained and stored in cookies.')
+
+        await checkAuth()
+
         navigate('/home') // 성공 시 홈으로 이동
       } catch (err) {
         console.error('Error during token exchange:', err)
@@ -802,7 +808,7 @@ export default function OauthCallback() {
     }
 
     exchangeCodeForToken()
-  }, [navigate])
+  }, [navigate, checkAuth])
 
   return (
     <div className="flex h-screen items-center justify-center">Processing OAuth callback...</div>
@@ -810,7 +816,7 @@ export default function OauthCallback() {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\pages\Signup.tsx
+C:\Users\tom99\study-security\frontend\src\pages\Signup.tsx
 // src/pages/Signup.tsx
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
@@ -868,7 +874,7 @@ export default function Signup() {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\App.tsx
+C:\Users\tom99\study-security\frontend\src\App.tsx
 // src/App.tsx
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Nav from './components/Nav'
@@ -924,7 +930,7 @@ export default function App() {
 }
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\main.tsx
+C:\Users\tom99\study-security\frontend\src\main.tsx
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -937,6 +943,6 @@ createRoot(document.getElementById('root')!).render(
 )
 
 
-C:\Users\tom99\workspace\study-security\frontend\src\vite-env.d.ts
+C:\Users\tom99\study-security\frontend\src\vite-env.d.ts
 /// <reference types="vite/client" />
 
