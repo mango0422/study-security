@@ -7,3 +7,4 @@ export const useLoginType = (): 'JPA' | 'OAuth' | 'InMemory' => {
   if (location.pathname.startsWith('/oauth')) return 'OAuth'
   return 'InMemory'
 }
+  

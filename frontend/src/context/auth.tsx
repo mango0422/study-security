@@ -51,16 +51,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         await backend.get('/messages')
         setIsAuthenticated(true)
-        console.log('User is authenticated via token check.')
+        console.log('✅ User is authenticated via token check.')
       } catch (error) {
-        console.error('Token validation failed or token expired:', error)
+        console.error('❌ Token validation failed:', error)
         setIsAuthenticated(false)
       }
     } else {
+      console.log('❌ No access token found.')
       setIsAuthenticated(false)
     }
     setIsLoading(false)
-  }, []) // 빈 배열 추가하여 한 번만 생성
+  }, [])
 
   useEffect(() => {
     checkAuth()

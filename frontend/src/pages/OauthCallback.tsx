@@ -1,10 +1,12 @@
 // src/pages/OauthCallback.tsx
+import { useAuthContext } from '../context/auth'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Cookies from 'js-cookie'
 
 export default function OauthCallback() {
   const navigate = useNavigate()
+  const { checkAuth } = useAuthContext()
 
   useEffect(() => {
     const exchangeCodeForToken = async () => {
@@ -68,6 +70,9 @@ export default function OauthCallback() {
         }
 
         console.log('Tokens obtained and stored in cookies.')
+
+        await checkAuth()
+
         navigate('/home') // 성공 시 홈으로 이동
       } catch (err) {
         console.error('Error during token exchange:', err)
@@ -77,7 +82,7 @@ export default function OauthCallback() {
     }
 
     exchangeCodeForToken()
-  }, [navigate])
+  }, [navigate, checkAuth])
 
   return (
     <div className="flex h-screen items-center justify-center">Processing OAuth callback...</div>
